@@ -374,12 +374,14 @@ memory_instantiate(AOTModuleInstance *module_inst, AOTModule *module,
            memory_inst->mem_bound_check_2bytes.u64 = total_size - 2;
            memory_inst->mem_bound_check_4bytes.u64 = total_size - 4;
            memory_inst->mem_bound_check_8bytes.u64 = total_size - 8;
+           memory_inst->mem_bound_check_16bytes.u64 = total_size - 16;
        }
        else {
            memory_inst->mem_bound_check_1byte.u32[0] = (uint32)total_size - 1;
            memory_inst->mem_bound_check_2bytes.u32[0] = (uint32)total_size - 2;
            memory_inst->mem_bound_check_4bytes.u32[0] = (uint32)total_size - 4;
            memory_inst->mem_bound_check_8bytes.u32[0] = (uint32)total_size - 8;
+           memory_inst->mem_bound_check_16bytes.u32[0] = (uint32)total_size - 16;
        }
     }
 
@@ -1534,12 +1536,14 @@ aot_enlarge_memory(AOTModuleInstance *module_inst, uint32 inc_page_count)
         memory_inst->mem_bound_check_2bytes.u64 = total_size - 2;
         memory_inst->mem_bound_check_4bytes.u64 = total_size - 4;
         memory_inst->mem_bound_check_8bytes.u64 = total_size - 8;
+        memory_inst->mem_bound_check_16bytes.u64 = total_size - 16;
     }
     else {
         memory_inst->mem_bound_check_1byte.u32[0] = (uint32)total_size - 1;
         memory_inst->mem_bound_check_2bytes.u32[0] = (uint32)total_size - 2;
         memory_inst->mem_bound_check_4bytes.u32[0] = (uint32)total_size - 4;
         memory_inst->mem_bound_check_8bytes.u32[0] = (uint32)total_size - 8;
+        memory_inst->mem_bound_check_16bytes.u32[0] = (uint32)total_size - 16;
     }
     return true;
 }
@@ -1582,12 +1586,14 @@ aot_enlarge_memory(AOTModuleInstance *module_inst, uint32 inc_page_count)
         memory_inst->mem_bound_check_2bytes.u64 = total_size - 2;
         memory_inst->mem_bound_check_4bytes.u64 = total_size - 4;
         memory_inst->mem_bound_check_8bytes.u64 = total_size - 8;
+        memory_inst->mem_bound_check_16bytes.u64 = total_size - 16;
     }
     else {
         memory_inst->mem_bound_check_1byte.u32[0] = (uint32)total_size - 1;
         memory_inst->mem_bound_check_2bytes.u32[0] = (uint32)total_size - 2;
         memory_inst->mem_bound_check_4bytes.u32[0] = (uint32)total_size - 4;
         memory_inst->mem_bound_check_8bytes.u32[0] = (uint32)total_size - 8;
+        memory_inst->mem_bound_check_16bytes.u32[0] = (uint32)total_size - 16;
     }
     return true;
 }
