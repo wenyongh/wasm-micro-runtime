@@ -3618,6 +3618,11 @@ wasm_loader_find_block_addr(BlockAddr *block_addr_cache,
             case WASM_OP_SIMD_PREFIX:
             {
                 opcode = read_uint8(p);
+                if (SIMD_i8x16_eq <= opcode
+                    && opcode <= SIMD_f32x4_convert_i32x4_u) {
+                    break;
+                }
+
                 switch (opcode) {
                     case SIMD_v128_load:
                     case SIMD_i16x8_load8x8_s:
@@ -3642,6 +3647,14 @@ wasm_loader_find_block_addr(BlockAddr *block_addr_cache,
                         p += 16;
                         break;
 
+                    case SIMD_i8x16_splat:
+                    case SIMD_i16x8_splat:
+                    case SIMD_i32x4_splat:
+                    case SIMD_i64x2_splat:
+                    case SIMD_f32x4_splat:
+                    case SIMD_f64x2_splat:
+                        break;
+
                     case SIMD_i8x16_extract_lane_s:
                     case SIMD_i8x16_extract_lane_u:
                     case SIMD_i8x16_replace_lane:
@@ -3660,85 +3673,13 @@ wasm_loader_find_block_addr(BlockAddr *block_addr_cache,
                         p++;
                         break;
 
-                    case SIMD_i8x16_eq:
-                    case SIMD_i8x16_ne:
-                    case SIMD_i8x16_lt_s:
-                    case SIMD_i8x16_lt_u:
-                    case SIMD_i8x16_gt_s:
-                    case SIMD_i8x16_gt_u:
-                    case SIMD_i8x16_le_s:
-                    case SIMD_i8x16_le_u:
-                    case SIMD_i8x16_ge_s:
-                    case SIMD_i8x16_ge_u:
-                    case SIMD_i16x8_eq:
-                    case SIMD_i16x8_ne:
-                    case SIMD_i16x8_lt_s:
-                    case SIMD_i16x8_lt_u:
-                    case SIMD_i16x8_gt_s:
-                    case SIMD_i16x8_gt_u:
-                    case SIMD_i16x8_le_s:
-                    case SIMD_i16x8_le_u:
-                    case SIMD_i16x8_ge_s:
-                    case SIMD_i16x8_ge_u:
-                    case SIMD_i32x4_eq:
-                    case SIMD_i32x4_ne:
-                    case SIMD_i32x4_lt_s:
-                    case SIMD_i32x4_lt_u:
-                    case SIMD_i32x4_gt_s:
-                    case SIMD_i32x4_gt_u:
-                    case SIMD_i32x4_le_s:
-                    case SIMD_i32x4_le_u:
-                    case SIMD_i32x4_ge_s:
-                    case SIMD_i32x4_ge_u:
-                    case SIMD_v128_not:
-                    case SIMD_v128_and:
-                    case SIMD_v128_andnot:
-                    case SIMD_v128_or:
-                    case SIMD_v128_xor:
-                    case SIMD_v128_bitselect:
-                    case SIMD_i8x16_shl:
-                    case SIMD_i8x16_shr_s:
-                    case SIMD_i8x16_shr_u:
-                    case SIMD_i16x8_shl:
-                    case SIMD_i16x8_shr_s:
-                    case SIMD_i16x8_shr_u:
-                    case SIMD_i32x4_shl:
-                    case SIMD_i32x4_shr_s:
-                    case SIMD_i32x4_shr_u:
-                    case SIMD_i64x2_shl:
-                    case SIMD_i64x2_shr_s:
-                    case SIMD_i64x2_shr_u:
-                    case SIMD_i8x16_any_true:
-                    case SIMD_i8x16_all_true:
-                    case SIMD_i16x8_any_true:
-                    case SIMD_i16x8_all_true:
-                    case SIMD_i32x4_any_true:
-                    case SIMD_i32x4_all_true:
-                    case SIMD_f32x4_eq:
-                    case SIMD_f32x4_ne:
-                    case SIMD_f32x4_lt:
-                    case SIMD_f32x4_gt:
-                    case SIMD_f32x4_le:
-                    case SIMD_f32x4_ge:
-                    case SIMD_f64x2_eq:
-                    case SIMD_f64x2_ne:
-                    case SIMD_f64x2_lt:
-                    case SIMD_f64x2_gt:
-                    case SIMD_f64x2_le:
-                    case SIMD_f64x2_ge:
-                    case SIMD_i8x16_splat:
-                    case SIMD_i16x8_splat:
-                    case SIMD_i32x4_splat:
-                    case SIMD_i64x2_splat:
-                    case SIMD_f32x4_splat:
-                    case SIMD_f64x2_splat:
-                        break;
-
                     default:
+                        LOG_WARNING("WASM loader find block addr failed: "
+                                    "invalid opcode fd 0x%02x.", opcode);
                         if (error_buf)
                             snprintf(error_buf, error_buf_size,
-                                    "WASM loader find block addr failed: "
-                                    "invalid opcode fd %02x.", opcode);
+                                     "WASM loader find block addr failed: "
+                                     "invalid opcode fd %02x.", opcode);
                         return false;
                 }
                 break;
@@ -4504,24 +4445,30 @@ preserve_referenced_local(WASMLoaderContext *loader_ctx, uint8 opcode,
                           uint32 local_index, uint32 local_type, bool *preserved,
                           char *error_buf, uint32 error_buf_size)
 {
+    uint32 i = 0;
     int16 preserved_offset = (int16)local_index;
+
     *preserved = false;
-    for (uint32 i = 0; i < loader_ctx->stack_cell_num; i++) {
+    while (i < loader_ctx->stack_cell_num) {
+        uint8 cur_type = loader_ctx->frame_ref_bottom[i];
+
         /* move previous local into dynamic space before a set/tee_local opcode */
         if (loader_ctx->frame_offset_bottom[i] == (int16)local_index) {
-            if (preserved_offset == (int16)local_index) {
+            if (!(*preserved)) {
                 *preserved = true;
                 skip_label();
+                preserved_offset = loader_ctx->preserved_local_offset;
+                if (loader_ctx->p_code_compiled) {
+                    bh_assert(preserved_offset != (int16)local_index);
+                }
                 if (local_type == VALUE_TYPE_I32
                     || local_type == VALUE_TYPE_F32) {
-                    preserved_offset = loader_ctx->preserved_local_offset;
                     /* Only increase preserve offset in the second traversal */
                     if (loader_ctx->p_code_compiled)
                         loader_ctx->preserved_local_offset++;
                     emit_label(EXT_OP_COPY_STACK_TOP);
                 }
                 else {
-                    preserved_offset = loader_ctx->preserved_local_offset;
                     if (loader_ctx->p_code_compiled)
                         loader_ctx->preserved_local_offset += 2;
                     emit_label(EXT_OP_COPY_STACK_TOP_I64);
@@ -4532,6 +4479,11 @@ preserve_referenced_local(WASMLoaderContext *loader_ctx, uint8 opcode,
             }
             loader_ctx->frame_offset_bottom[i] = preserved_offset;
         }
+
+        if (cur_type == VALUE_TYPE_I32 || cur_type == VALUE_TYPE_F32)
+            i++;
+        else
+            i += 2;
     }
 
     return true;
@@ -4540,6 +4492,38 @@ preserve_referenced_local(WASMLoaderContext *loader_ctx, uint8 opcode,
 fail:
     return false;
 #endif
+}
+
+static bool
+preserve_local_for_block(WASMLoaderContext *loader_ctx, uint8 opcode,
+                         char *error_buf, uint32 error_buf_size)
+{
+    uint32 i = 0;
+    bool preserve_local;
+
+    /* preserve locals before blocks to ensure that "tee/set_local" inside
+        blocks will not influence the value of these locals */
+    while (i < loader_ctx->stack_cell_num) {
+        int16 cur_offset = loader_ctx->frame_offset_bottom[i];
+        uint8 cur_type = loader_ctx->frame_ref_bottom[i];
+
+        if ((cur_offset < loader_ctx->start_dynamic_offset)
+            && (cur_offset >= 0)) {
+            if (!(preserve_referenced_local(loader_ctx, opcode, cur_offset,
+                                            cur_type, &preserve_local,
+                                            error_buf, error_buf_size)))
+                return false;
+        }
+
+        if (cur_type == VALUE_TYPE_I32 || cur_type == VALUE_TYPE_F32) {
+            i++;
+        }
+        else {
+            i += 2;
+        }
+    }
+
+    return true;
 }
 
 static bool
@@ -5312,7 +5296,7 @@ check_simd_memory_access_align(uint8 opcode, uint32 align,
         4, /* store */
     };
 
-    bh_assert(opcode >= SIMD_v128_load && opcode <= SIMD_v128_store);
+    bh_assert(opcode <= SIMD_v128_store);
 
     if (align > mem_access_aligns[opcode - SIMD_v128_load]) {
         set_error_buf(error_buf, error_buf_size,
@@ -5715,6 +5699,13 @@ fail:
 #define BLOCK_HAS_PARAM(block_type) \
     (!block_type.is_value_type && block_type.u.type->param_count > 0)
 
+#define PRESERVE_LOCAL_FOR_BLOCK()  do {                                  \
+    if (!(preserve_local_for_block(loader_ctx, opcode,                    \
+                                   error_buf, error_buf_size))) {         \
+        goto fail;                                                        \
+    }                                                                     \
+} while (0)
+
 static bool
 wasm_loader_prepare_bytecode(WASMModule *module, WASMFunction *func,
                              BlockAddr *block_addr_cache,
@@ -5803,10 +5794,16 @@ re_scan:
                 break;
 
             case WASM_OP_IF:
+#if WASM_ENABLE_FAST_INTERP != 0
+                PRESERVE_LOCAL_FOR_BLOCK();
+#endif
                 POP_I32();
                 goto handle_op_block_and_loop;
             case WASM_OP_BLOCK:
             case WASM_OP_LOOP:
+#if WASM_ENABLE_FAST_INTERP != 0
+                PRESERVE_LOCAL_FOR_BLOCK();
+#endif
 handle_op_block_and_loop:
             {
                 uint8 value_type;
@@ -6242,6 +6239,9 @@ handle_op_block_and_loop:
 
                 read_leb_uint32(p, p_end, type_idx);
 #if WASM_ENABLE_FAST_INTERP != 0
+#if WASM_ENABLE_TAIL_CALL != 0
+                emit_byte(loader_ctx, opcode);
+#endif
                 /* we need to emit func_idx before arguments */
                 emit_uint32(loader_ctx, type_idx);
 #endif
@@ -6295,12 +6295,13 @@ handle_op_block_and_loop:
                     }
                     for (i = 0; i < func_type->result_count; i++) {
                         type = func->func_type->types[func->func_type->param_count + i];
-                        if (func_type->types[func_type->param_count + i] != type)
-                            set_error_buf_v(error_buf, error_buf_size, "%s%s%s",
-                                            "type mismatch: expect ",
+                        if (func_type->types[func_type->param_count + i] != type) {
+                            set_error_buf_v(error_buf, error_buf_size,
+                                            "%s%s%s", "type mismatch: expect ",
                                             type_str[type - VALUE_TYPE_V128],
                                             " but got other");
-                        goto fail;
+                            goto fail;
+                        }
                     }
                     RESET_STACK();
                     SET_CUR_BLOCK_STACK_POLYMORPHIC_STATE(true);
