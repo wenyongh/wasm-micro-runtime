@@ -2106,8 +2106,14 @@ aot_convert_wasm_module(WASMModule *wasm_module,
     }
 
     option.is_jit_mode = true;
+#if WASM_ENABLE_BULK_MEMORY != 0
+    option.enable_bulk_memory = true;
+#endif
 #if WASM_ENABLE_THREAD_MGR != 0
     option.enable_thread_mgr = true;
+#endif
+#if WASM_ENABLE_TAIL_CALL != 0
+    option.enable_tail_call = true;
 #endif
 #if WASM_ENABLE_SIMD != 0
     option.enable_simd = true;

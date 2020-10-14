@@ -1134,6 +1134,9 @@ aot_create_comp_context(AOTCompData *comp_data,
     if (option->enable_thread_mgr)
         comp_ctx->enable_thread_mgr = true;
 
+    if (option->enable_tail_call)
+        comp_ctx->enable_tail_call = true;
+
     if (option->enable_simd)
         comp_ctx->enable_simd = true;
 

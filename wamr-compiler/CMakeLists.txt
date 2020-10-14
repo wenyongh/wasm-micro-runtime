@@ -26,6 +26,7 @@ add_definitions(-DWASM_ENABLE_BULK_MEMORY=1)
 add_definitions(-DWASM_DISABLE_HW_BOUND_CHECK=1)
 add_definitions(-DWASM_ENABLE_SHARED_MEMORY=1)
 add_definitions(-DWASM_ENABLE_THREAD_MGR=1)
+add_definitions(-DWASM_ENABLE_TAIL_CALL=1)
 add_definitions(-DWASM_ENABLE_SIMD=1)
 
 # Set WAMR_BUILD_TARGET, currently values supported:

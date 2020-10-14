@@ -232,6 +232,7 @@ fail:
 } while (0)
 
 #if WASM_ENABLE_SIMD != 0
+#if (WASM_ENABLE_WAMR_COMPILER != 0) || (WASM_ENABLE_JIT != 0)
 static V128
 read_i8x16(uint8 *p_buf, char* error_buf, uint32 error_buf_size)
 {
@@ -244,7 +245,8 @@ read_i8x16(uint8 *p_buf, char* error_buf, uint32 error_buf_size)
 
     return result;
 }
-#endif
+#endif /* end of (WASM_ENABLE_WAMR_COMPILER != 0) || (WASM_ENABLE_JIT != 0) */
+#endif /* end of WASM_ENABLE_SIMD */
 
 static void *
 loader_malloc(uint64 size, char *error_buf, uint32 error_buf_size)
@@ -3642,11 +3644,11 @@ wasm_loader_find_block_addr(BlockAddr *block_addr_cache,
 
                     case SIMD_v128_const:
                     case SIMD_v8x16_shuffle:
-                    case SIMD_v8x16_swizzle:
                         CHECK_BUF1(p, p_end, 16);
                         p += 16;
                         break;
 
+                    case SIMD_v8x16_swizzle:
                     case SIMD_i8x16_splat:
                     case SIMD_i16x8_splat:
                     case SIMD_i32x4_splat:
@@ -4031,7 +4033,7 @@ wasm_loader_ctx_init(WASMFunction *func)
     WASMLoaderContext *loader_ctx =
         wasm_runtime_malloc(sizeof(WASMLoaderContext));
     if (!loader_ctx)
-        return false;
+        return NULL;
     memset(loader_ctx, 0, sizeof(WASMLoaderContext));
 
     loader_ctx->frame_ref_size = 32;
@@ -4918,6 +4920,13 @@ fail:
         goto fail;                                                      \
   } while (0)
 
+#define PUSH_V128() do {                                                \
+    if (!(wasm_loader_push_frame_ref_offset(loader_ctx, VALUE_TYPE_V128,\
+                                            disable_emit, operand_offset,\
+                                            error_buf, error_buf_size)))\
+        goto fail;                                                      \
+  } while (0)
+
 #define POP_I32() do {                                                  \
     if (!wasm_loader_pop_frame_ref_offset(loader_ctx, VALUE_TYPE_I32,   \
                                           error_buf, error_buf_size))   \
@@ -4938,6 +4947,12 @@ fail:
 
 #define POP_F64() do {                                                  \
     if (!wasm_loader_pop_frame_ref_offset(loader_ctx, VALUE_TYPE_F64,   \
+                                          error_buf, error_buf_size))   \
+        goto fail;                                                      \
+  } while (0)
+
+#define POP_V128() do {                                                 \
+    if (!wasm_loader_pop_frame_ref_offset(loader_ctx, VALUE_TYPE_V128,  \
                                           error_buf, error_buf_size))   \
         goto fail;                                                      \
   } while (0)
@@ -5285,6 +5300,7 @@ check_memory_access_align(uint8 opcode, uint32 align,
 }
 
 #if WASM_ENABLE_SIMD != 0
+#if (WASM_ENABLE_WAMR_COMPILER != 0) || (WASM_ENABLE_JIT != 0)
 static bool
 check_simd_memory_access_align(uint8 opcode, uint32 align,
                                char *error_buf, uint32 error_buf_size)
@@ -5366,6 +5382,7 @@ check_simd_shuffle_mask(V128 mask,
     }
     return true;
 }
+#endif /* end of (WASM_ENABLE_WAMR_COMPILER != 0) || (WASM_ENABLE_JIT != 0) */
 #endif /* end of WASM_ENABLE_SIMD */
 
 #if WASM_ENABLE_SHARED_MEMORY != 0
