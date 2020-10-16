@@ -8,7 +8,8 @@ if [ ! -d "binaryen" ]; then
     cd ..
 fi
 
+cd binaryen
 mkdir -p build
 cd build
-cmake ../binaryen
+cmake ..
 make

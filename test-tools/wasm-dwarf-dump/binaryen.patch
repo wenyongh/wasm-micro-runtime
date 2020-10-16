@@ -1,20 +1,12 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 418400cad..130460db5 100644
+index 4f25574f1..6f05134bf 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -352,6 +352,15 @@ set_property(TARGET wasm-dis PROPERTY CXX_STANDARD 14)
- set_property(TARGET wasm-dis PROPERTY CXX_STANDARD_REQUIRED ON)
- install(TARGETS wasm-dis DESTINATION ${CMAKE_INSTALL_BINDIR})
+@@ -331,6 +331,7 @@ binaryen_add_executable(wasm-as src/tools/wasm-as.cpp)
+ binaryen_add_executable(wasm-dis src/tools/wasm-dis.cpp)
+ binaryen_add_executable(wasm-ctor-eval src/tools/wasm-ctor-eval.cpp)
+ binaryen_add_executable(wasm-reduce src/tools/wasm-reduce.cpp)
++binaryen_add_executable(wasm-dwarf-dump src/tools/wasm-dwarf-dump.cpp)
  
-+set(wasm_dwarf_dump_SOURCES
-+  src/tools/wasm-dwarf-dump.cpp
-+)
-+add_executable(wasm-dwarf-dump ${wasm_dwarf_dump_SOURCES} ${binaryen_objs})
-+target_link_libraries(wasm-dwarf-dump ${CMAKE_THREAD_LIBS_INIT})
-+set_property(TARGET wasm-dwarf-dump PROPERTY CXX_STANDARD 14)
-+set_property(TARGET wasm-dwarf-dump PROPERTY CXX_STANDARD_REQUIRED ON)
-+install(TARGETS wasm-dwarf-dump DESTINATION ${CMAKE_INSTALL_BINDIR})
-+
- set(wasm-ctor-eval_SOURCES
-   src/tools/wasm-ctor-eval.cpp
- )
+ 
+ # binaryen.js
