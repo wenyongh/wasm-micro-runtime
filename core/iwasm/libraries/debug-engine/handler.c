@@ -382,7 +382,7 @@ handle_get_register(WASMGDBServer *server, char *payload)
 }
 
 void
-handle_get_json_requst(WASMGDBServer *server, char *payload)
+handle_get_json_request(WASMGDBServer *server, char *payload)
 {
     char *args;
 
@@ -493,7 +493,7 @@ handle_remove_break(WASMGDBServer *server, char *payload)
 }
 
 void
-handle_continue_requst(WASMGDBServer *server, char *payload)
+handle_continue_request(WASMGDBServer *server, char *payload)
 {
     uint64_t tid;
     uint32_t status;
@@ -511,7 +511,7 @@ handle_continue_requst(WASMGDBServer *server, char *payload)
 }
 
 void
-handle_kill_requst(WASMGDBServer *server, char *payload)
+handle_kill_request(WASMGDBServer *server, char *payload)
 {
     uint64_t tid;
     uint32_t status;
@@ -583,7 +583,7 @@ handle_free(WASMGDBServer *server, char *payload)
 }
 
 void
-handle____requst(WASMGDBServer *server, char *payload)
+handle____request(WASMGDBServer *server, char *payload)
 {
     char *args;
 
