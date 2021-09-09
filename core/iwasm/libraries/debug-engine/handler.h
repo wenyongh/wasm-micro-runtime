@@ -45,7 +45,7 @@ void
 handle_remove_break(WASMGDBServer *server, char *payload);
 
 void
-handle_contiue_requst(WASMGDBServer *server, char *payload);
+handle_continue_requst(WASMGDBServer *server, char *payload);
 
 void
 handle_kill_requst(WASMGDBServer *server, char *payload);
