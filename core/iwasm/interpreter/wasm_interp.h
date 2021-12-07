@@ -26,6 +26,11 @@ typedef struct WASMInterpFrame {
     /* Instruction pointer of the bytecode array.  */
     uint8 *ip;
 
+#if WASM_ENABLE_ONE_PASS_JIT
+    uint8 *jited_return_addr;
+    uint32 spill_cache[16];
+#endif
+
 #if WASM_ENABLE_PERF_PROFILING != 0
     uint64 time_started;
 #endif

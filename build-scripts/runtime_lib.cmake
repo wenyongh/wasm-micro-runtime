@@ -59,6 +59,8 @@ if (WAMR_BUILD_AOT EQUAL 1)
     endif ()
 endif ()
 
+include (${IWASM_DIR}/one-pass-jit/iwasm_one_pass_jit.cmake)
+
 if (WAMR_BUILD_APP_FRAMEWORK EQUAL 1)
     include (${APP_FRAMEWORK_DIR}/app_framework.cmake)
     include (${SHARED_DIR}/coap/lib_coap.cmake)
@@ -131,6 +133,7 @@ set (source_all
     ${IWASM_INTERP_SOURCE}
     ${IWASM_AOT_SOURCE}
     ${IWASM_COMPL_SOURCE}
+    ${IWASM_ONE_PASS_JIT_SOURCE}
     ${WASM_APP_LIB_SOURCE_ALL}
     ${NATIVE_INTERFACE_SOURCE}
     ${APP_MGR_SOURCE}

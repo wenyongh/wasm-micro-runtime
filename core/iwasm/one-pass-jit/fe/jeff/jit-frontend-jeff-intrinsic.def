@@ -1,0 +1,56 @@
+/* -*- mode:C; indent-tabs-mode:nil -*- */
+/*
+ * INTEL CONFIDENTIAL
+ *
+ * Copyright (C) 2010, 2011 Intel Corporation All Rights Reserved.
+ *
+ * The source code contained or described herein and all documents
+ * related to the source code ("Material") are owned by Intel
+ * Corporation or its suppliers or licensors. Title to the Material
+ * remains with Intel Corporation or its suppliers and licensors. The
+ * Material contains trade secrets and proprietary and confidential
+ * information of Intel or its suppliers and licensors. The Material
+ * is protected by worldwide copyright and trade secret laws and
+ * treaty provisions. No part of the Material may be used, copied,
+ * reproduced, modified, published, uploaded, posted, transmitted,
+ * distributed, or disclosed in any way without Intel's prior express
+ * written permission.
+ *
+ * No license under any patent, copyright, trade secret or other
+ * intellectual property right is granted to or conferred upon you by
+ * disclosure or delivery of the Materials, either expressly, by
+ * implication, inducement, estoppel or otherwise. Any license under
+ * such intellectual property rights must be express and approved by
+ * Intel in writing.
+ */
+
+/**
+ * @file   jit-frontend-jeff-intrinsic.def
+ * @author Jiutao <jiu-tao.nie@intel.com>
+ * @date   Wed Nov  6 12:50:36 2013
+ *
+ * @brief  Definition of intrinsic functions for JEFF frontend.
+ */
+
+#ifndef INTRINSIC
+#define INTRINSIC(NAME)
+#endif
+
+INTRINSIC (jeff_interp_new_object)
+INTRINSIC (jeff_interp_new_array)
+INTRINSIC (jeff_interp_new_multiarray)
+INTRINSIC (jeff_interp_new_constarray)
+INTRINSIC (jeff_interp_load_class)
+INTRINSIC (jeff_interp_load_string)
+INTRINSIC (jeff_interp_classbase)
+INTRINSIC (jeff_interp_instanceof)
+INTRINSIC (jeff_interp_athrow)
+INTRINSIC (jeff_interp_check_ase)
+INTRINSIC (jeff_interp_check_cce)
+INTRINSIC (jeff_interp_select_method_interface)
+INTRINSIC (jeff_runtime_get_class_object)
+INTRINSIC (jeff_sync_object_lock)
+INTRINSIC (jeff_sync_object_unlock)
+INTRINSIC (jeff_get_vtable)
+
+#undef INTRINSIC
