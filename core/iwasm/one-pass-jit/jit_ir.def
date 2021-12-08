@@ -116,7 +116,17 @@ INSN(SELECT, Reg, 4, 1)
 
 /* Control instructions */
 INSN(JMP, Reg, 1, 0)
-INSN(JMP_IF, Reg, 2, 0)
+INSN(BEQ, Reg, 3, 0)
+INSN(BNE, Reg, 3, 0)
+INSN(BGTS, Reg, 3, 0)
+INSN(BGES, Reg, 3, 0)
+INSN(BLTS, Reg, 3, 0)
+INSN(BLES, Reg, 3, 0)
+INSN(BGTU, Reg, 3, 0)
+INSN(BGEU, Reg, 3, 0)
+INSN(BLTU, Reg, 3, 0)
+INSN(BLEU, Reg, 3, 0)
+INSN(TABLESWITCH, TableSwitch, 1, 0)
 INSN(LOOKUP_SWITCH, LookupSwitch, 1, 0)
 
 /* Call and return instructions */

@@ -1,4 +1,4 @@
-#include "jit_code_cache.h"
+#include "jit_codecache.h"
 #include "mem_alloc.h"
 
 static void *code_cache_pool = NULL;

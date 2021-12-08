@@ -59,7 +59,9 @@ if (WAMR_BUILD_AOT EQUAL 1)
     endif ()
 endif ()
 
-include (${IWASM_DIR}/one-pass-jit/iwasm_one_pass_jit.cmake)
+if (NOT WAMR_BUILD_JIT EQUAL 1 AND WAMR_BUILD_ONE_PASS_JIT EQUAL 1)
+    include (${IWASM_DIR}/one-pass-jit/iwasm_one_pass_jit.cmake)
+endif ()
 
 if (WAMR_BUILD_APP_FRAMEWORK EQUAL 1)
     include (${APP_FRAMEWORK_DIR}/app_framework.cmake)

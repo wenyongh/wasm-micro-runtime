@@ -15,6 +15,9 @@
 #if WASM_ENABLE_THREAD_MGR != 0 && WASM_ENABLE_DEBUG_INTERP != 0
 #include "../libraries/thread-mgr/thread_manager.h"
 #endif
+#if WASM_ENABLE_ONE_PASS_JIT != 0
+#include "../one-pass-jit/jit_compiler.h"
+#endif
 
 typedef int32 CellType_I32;
 typedef int64 CellType_I64;
@@ -3752,7 +3755,11 @@ wasm_interp_call_wasm(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
         }
     }
     else {
+#if WASM_ENABLE_ONE_PASS_JIT == 0
         wasm_interp_call_func_bytecode(module_inst, exec_env, function, frame);
+#else
+        jit_call_func_jited(exec_env, frame, function->u.func->jited_code);
+#endif
     }
 
     /* Output the return value to the caller */

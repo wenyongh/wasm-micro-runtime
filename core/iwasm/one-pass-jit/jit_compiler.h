@@ -31,6 +31,9 @@ jit_compiler_compile(WASMModule *module, uint32 func_idx);
 bool
 jit_compiler_compile_all(WASMModule *module);
 
+bool
+jit_call_func_jited(void *exec_env, void *frame, void *target);
+
 /*
  * Pass declarations:
  */
@@ -70,13 +73,6 @@ _jit_pass_lower_cg(JitCompContext *cc);
  */
 bool
 _jit_pass_regalloc(JitCompContext *cc);
-
-/**
- * Basic block reordering optimization that attempts to reorder basic
- * blocks to minimize cost of branch instructions.
- */
-bool
-_jit_pass_bbreorder(JitCompContext *cc);
 
 /**
  * Native code generation.

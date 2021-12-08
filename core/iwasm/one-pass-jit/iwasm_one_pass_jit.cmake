@@ -7,6 +7,12 @@ add_definitions (-DWASM_ENABLE_ONE_PASS_JIT=1)
 
 include_directories (${IWASM_ONE_PASS_JIT_DIR})
 
-file (GLOB c_source_all ${IWASM_ONE_PASS_JIT_DIR}/*.c)
+file (GLOB c_source_jit ${IWASM_ONE_PASS_JIT_DIR}/*.c)
 
-set (IWASM_ONE_PASS_JIT_SOURCE ${c_source_all})
+if (WAMR_BUILD_TARGET STREQUAL "X86_64" OR WAMR_BUILD_TARGET STREQUAL "AMD_64")
+  file (GLOB_RECURSE c_source_jit_cg ${IWASM_ONE_PASS_JIT_DIR}/cg/x86-64/*.c)
+else ()
+  message (FATAL_ERROR "One Pass JIT codegen for target ${WAMR_BUILD_TARGET} isn't implemented")
+endif ()
+
+set (IWASM_ONE_PASS_JIT_SOURCE ${c_source_jit} ${c_source_jit_cg})

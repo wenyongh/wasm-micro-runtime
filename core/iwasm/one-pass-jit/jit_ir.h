@@ -875,43 +875,43 @@ typedef struct JitValueStack {
 /* Record information of a value slot of local variable or stack
    during translation.  */
 typedef struct JitValueSlot {
-  /* The virtual register that holds the value of the slot if the
-     value of the slot is in register.  */
-  JitReg reg;
+    /* The virtual register that holds the value of the slot if the
+       value of the slot is in register.  */
+    JitReg reg;
 
-  /* The dirty bit of the value slot. It's set if the value in
-     register is newer than the value in memory.  */
-  unsigned dirty : 1;
+    /* The dirty bit of the value slot. It's set if the value in
+       register is newer than the value in memory.  */
+    unsigned dirty : 1;
 
-  /* Whether the new value in register is a reference, which is valid
-     only when the dirty bit is set.  */
-  unsigned ref : 1;
+    /* Whether the new value in register is a reference, which is valid
+       only when the dirty bit is set.  */
+    unsigned ref : 1;
 
-  /* Committed reference flag.  0: unknown, 1: not-reference, 2:
-     reference.  */
-  unsigned committed_ref : 2;
+    /* Committed reference flag.  0: unknown, 1: not-reference, 2:
+       reference.  */
+    unsigned committed_ref : 2;
 } JitValueSlot;
 
 /* Frame information for translation */
 typedef struct JitFrame {
-  /* The current Jit Block */
-  struct JitBlock *block;
+    /* The current Jit Block */
+    struct JitBlock *block;
 
-  uint32 max_locals;
+    uint32 max_locals;
 
-  uint32 max_stack;
+    uint32 max_stack;
 
-  /* Stack top pointer */
-  JitValueSlot *sp;
+    /* Stack top pointer */
+    JitValueSlot *sp;
 
-  /* Committed instruction pointer */
-  uint8  *committed_ip;
+    /* Committed instruction pointer */
+    uint8 *committed_ip;
 
-  /* Committed stack top pointer */
-  JitValueSlot *committed_sp;
+    /* Committed stack top pointer */
+    JitValueSlot *committed_sp;
 
-  /* Local variables */
-  JitValueSlot lp[1];
+    /* Local variables */
+    JitValueSlot lp[1];
 } JitFrame;
 
 typedef struct JitBlock {

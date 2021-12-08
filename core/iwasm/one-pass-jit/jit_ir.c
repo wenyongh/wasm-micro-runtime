@@ -365,7 +365,16 @@ jit_basic_block_succs(JitBasicBlock *block)
             vec._base = jit_insn_opnd(last_insn, 0);
             break;
 
-        case JIT_OP_JMP_IF:
+        case JIT_OP_BEQ:
+        case JIT_OP_BNE:
+        case JIT_OP_BGTS:
+        case JIT_OP_BGES:
+        case JIT_OP_BLTS:
+        case JIT_OP_BLES:
+        case JIT_OP_BGTU:
+        case JIT_OP_BGEU:
+        case JIT_OP_BLTU:
+        case JIT_OP_BLEU:
             vec.num = 2;
             vec._base = jit_insn_opnd(last_insn, 1);
             break;

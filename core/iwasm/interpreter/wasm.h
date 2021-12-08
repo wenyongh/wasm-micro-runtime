@@ -254,6 +254,9 @@ struct WASMFunction {
     uint8 *consts;
     uint32 const_cell_num;
 #endif
+#if WASM_ENABLE_ONE_PASS_JIT != 0
+    void *jited_code;
+#endif
 };
 
 struct WASMGlobal {

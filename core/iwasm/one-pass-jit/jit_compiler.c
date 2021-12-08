@@ -1,7 +1,7 @@
 #include "jit_compiler.h"
 #include "jit_ir.h"
-//#include "jit_codegen.h"
-#include "jit_code_cache.h"
+#include "jit_codegen.h"
+#include "jit_codecache.h"
 #include "../interpreter/wasm.h"
 
 typedef struct JitGlobals {
@@ -24,12 +24,19 @@ typedef struct JitCompilerPass {
 
 #define REG_PASS(name) { #name, _jit_pass_##name },
 
+/* clang-format off */
 static JitCompilerPass compiler_passes[] = {
     { NULL, NULL },
-    REG_PASS(dump) REG_PASS(update_cfg) REG_PASS(frontend) REG_PASS(lower_fe)
-        REG_PASS(lower_cg) REG_PASS(regalloc) REG_PASS(bbreorder)
-            REG_PASS(codegen) REG_PASS(register_region)
+    REG_PASS(dump)
+    /*REG_PASS(update_cfg)*/
+    REG_PASS(frontend)
+    REG_PASS(lower_fe)
+    REG_PASS(lower_cg)
+    REG_PASS(regalloc)
+    REG_PASS(codegen)
+    REG_PASS(register_region)
 };
+/* clang-format on */
 
 #undef REG_PASS
 
@@ -59,26 +66,25 @@ apply_compiler_passes(JitCompContext *cc)
 bool
 jit_compiler_init()
 {
-#if 0
-    if (!jit_code_cache_init ())
+    /* TODO: get code cache size with global configs */
+    if (!jit_code_cache_init(2 * 1024 * 1024))
         return false;
 
-    if (!jit_codegen_init ())
+    if (!jit_codegen_init())
         goto fail1;
 
     return true;
 
 fail1:
-    jit_code_cache_destroy ();
+    jit_code_cache_destroy();
     return false;
-#endif
-    return jit_code_cache_init(1024 * 1024);
 }
 
 void
 jit_compiler_destroy()
 {
-    // jit_codegen_destroy ();
+    jit_codegen_destroy();
+
     jit_code_cache_destroy();
 }
 
@@ -127,4 +133,37 @@ jit_compiler_compile(WASMModule *module, uint32 func_idx)
     jit_cc_delete(cc);
 
     return ret;
+}
+
+bool
+jit_compiler_compile_all(WASMModule *module)
+{
+    JitCompContext *cc;
+    bool ret = false;
+
+    /* Initialize compilation context.  */
+    if (!(cc = jit_calloc(sizeof(*cc))))
+        return false;
+
+    if (!jit_cc_init(cc, 64)) {
+        jit_free(cc);
+        return false;
+    }
+
+    /* TODO: create function contex */
+
+    /* Apply compiler passes.  */
+    if (apply_compiler_passes(cc))
+        ret = true;
+
+    /* Delete the compilation context.  */
+    jit_cc_delete(cc);
+
+    return ret;
+}
+
+bool
+jit_call_func_jited(void *exec_env, void *frame, void *target)
+{
+    return jit_codegen_call_func_jited(exec_env, frame, target);
 }

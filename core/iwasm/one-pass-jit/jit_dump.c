@@ -189,11 +189,11 @@ jit_dump_basic_block(JitCompContext *cc, JitBasicBlock *block)
 
     if (jit_annl_is_enabled_begin_bcip(cc))
         os_printf(" BEGIN_BCIP=%d", *(jit_annl_begin_bcip(cc, label))
-                                    - (uint8*)cc->wasm_func->code);
+                                        - (uint8 *)cc->wasm_func->code);
 
     if (jit_annl_is_enabled_end_bcip(cc))
         os_printf(" END_BCIP=%d", *(jit_annl_end_bcip(cc, label))
-                                  - (uint8*)cc->wasm_func->code);
+                                      - (uint8 *)cc->wasm_func->code);
     os_printf("\n");
 
     if (jit_annl_is_enabled_jited_addr(cc))
@@ -258,7 +258,7 @@ dump_cc_ir(JitCompContext *cc)
     JitBasicBlock *block;
     JitReg label;
     const char *kind_names[] = { "VOID", "I32", "I64",  "F32",
-                                 "F64",   "V64", "V128", "V256" };
+                                 "F64",  "V64", "V128", "V256" };
 
     os_printf("; Function: ");
     dump_func_name(cc);

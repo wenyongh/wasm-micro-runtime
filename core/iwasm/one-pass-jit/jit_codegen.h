@@ -27,7 +27,7 @@ jit_codegen_destroy();
  *
  * @return the JitHardRegInfo array of each kind
  */
-const JitHardRegInfo*
+const JitHardRegInfo *
 jit_codegen_get_hreg_info();
 
 /**
@@ -64,8 +64,8 @@ jit_codegen_dump_native(void *begin_addr, void *end_addr);
  *
  * @param exec_env the current exec_env
  */
-int
-jit_codegen_call_jited_func(void *exec_env);
+bool
+jit_codegen_call_func_jited(void *exec_env, void *frame, void *target);
 
 #ifdef __cplusplus
 }

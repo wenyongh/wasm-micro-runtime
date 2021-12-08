@@ -13,6 +13,9 @@
 #if WASM_ENABLE_DEBUG_INTERP != 0
 #include "../libraries/debug-engine/debug_engine.h"
 #endif
+#if WASM_ENABLE_ONE_PASS_JIT != 0
+#include "../one-pass-jit/jit_compiler.h"
+#endif
 
 /* Read a value of given type from the address pointed to by the given
    pointer and increase the pointer to the position just after the
@@ -3210,6 +3213,15 @@ load_from_sections(WASMModule *module, WASMSection *sections,
         }
 #endif
     }
+
+#if WASM_ENABLE_ONE_PASS_JIT != 0
+    if (!jit_compiler_compile_all(module)) {
+        set_error_buf(error_buf, error_buf_size,
+                      "one pass jit compilation failed");
+        wasm_unload(module);
+        return false;
+    }
+#endif
 
 #if WASM_ENABLE_MEMORY_TRACING != 0
     wasm_runtime_dump_module_mem_consumption((WASMModuleCommon *)module);

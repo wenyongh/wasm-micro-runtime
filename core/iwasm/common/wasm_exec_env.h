@@ -84,7 +84,7 @@ typedef struct WASMExecEnv {
     void **native_symbol;
 #endif
 
-#if WASM_ENABLE_ONE_PASS_JIT !=0
+#if WASM_ENABLE_ONE_PASS_JIT != 0
     /* Cache for jit native operations, mainly for operations of float,
      double and long, such as F64TOI64, F32TOI64, I64 MUL/REM, and so on. */
     uint64 jit_cache[2];
