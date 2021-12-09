@@ -12,10 +12,10 @@ extern "C" {
  */
 typedef struct JitBitmap {
     /* The first valid bit index.  */
-    uint32 begin_index;
+    uintptr_t begin_index;
 
     /* The last valid bit index plus one.  */
-    uint32 end_index;
+    uintptr_t end_index;
 
     /* The bitmap.  */
     uint8 map[1];
@@ -52,7 +52,7 @@ jit_free(void *ptr)
  * @return the new bitmap if succeeds, NULL otherwise.
  */
 JitBitmap *
-jit_bitmap_new(unsigned begin_index, unsigned bitnum);
+jit_bitmap_new(uintptr_t begin_index, unsigned bitnum);
 
 /**
  * Delete a bitmap.

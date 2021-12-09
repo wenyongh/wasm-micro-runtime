@@ -2,35 +2,6 @@
 #include "jit_compiler.h"
 #include "jit_codegen.h"
 
-#if 0
-static void
-dump_cc_hot_entries (JitCompContext *cc)
-{
-  JitHotEntry *e = cc->hot_entries.begin;
-
-  for (; e < cc->hot_entries.end; e++)
-    {
-      if (!jit_hot_entry_is_valid (e))
-        /* Skip the invalidated entries.  */
-        continue;
-
-      os_printf ("Hot entry in method ");
-      jit_frontend_print_method_name (e->method);
-#ifndef BEIHAI_JIT_FOR_DALVIK
-      os_printf (": BCIP=%d SP=%d\n",
-                  jit_frontend_bcip_to_offset (e->method, e->bcip),
-                  e->sp);
-#else
-      os_printf (": BCIP=0x%X, 16bit code offset:0x%X\n",
-                  (unsigned)e->bcip,
-                  (unsigned)jit_frontend_bcip_to_offset (e->method, e->bcip) / 2);
-#endif
-    }
-
-  os_printf ("\n");
-}
-#endif
-
 void
 jit_dump_reg(JitCompContext *cc, JitReg reg)
 {
@@ -319,35 +290,22 @@ dump_cc_ir(JitCompContext *cc)
 void
 jit_dump_cc(JitCompContext *cc)
 {
-#if 0
-  if (jit_cc_label_num (cc) == 2)
-    /* Not translated yet, dump the hot entries.  */
-    dump_cc_hot_entries (cc);
-  else
-    /* Otherwise, dump the IR.  */
-    dump_cc_ir (cc);
-#endif
+  if (jit_cc_label_num (cc) <= 2)
+    return;
+
+  dump_cc_ir (cc);
 }
 
 bool
 _jit_pass_dump(JitCompContext *cc)
 {
-#if 0
-  const uint8 *passes = jit_globals.options.passes;
-
-  if (!jit_frontend_call_code_filter (jit_globals.options.dump_filter,
-                                      cc->method, cc->entry_bcip))
-    return true;
-
-  os_printf ("JIT.COMPILER.DUMP: PASS_NO=%d PREV_PASS=%s\n\n",
-              cc->pass_no,
-              (cc->pass_no > 0
-               ? jit_compiler_get_pass_name (passes[cc->pass_no - 1])
-               : "NULL"));
-  jit_dump_cc (cc);
-  os_printf ("\n");
-#endif
-
+    os_printf ("JIT.COMPILER.DUMP: PASS_NO=%d PREV_PASS=%s\n\n",
+            cc->pass_no,
+            (cc->pass_no > 0
+             ? jit_compiler_get_pass_name (cc->pass_no)
+             : "NULL"));
+    jit_dump_cc (cc);
+    os_printf ("\n");
     return true;
 }
 

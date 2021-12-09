@@ -25,6 +25,9 @@ jit_compiler_init();
 void
 jit_compiler_destroy();
 
+const char *
+jit_compiler_get_pass_name(unsigned i);
+
 bool
 jit_compiler_compile(WASMModule *module, uint32 func_idx);
 

@@ -30,11 +30,13 @@ static JitCompilerPass compiler_passes[] = {
     REG_PASS(dump)
     /*REG_PASS(update_cfg)*/
     REG_PASS(frontend)
+    /*
     REG_PASS(lower_fe)
     REG_PASS(lower_cg)
     REG_PASS(regalloc)
     REG_PASS(codegen)
     REG_PASS(register_region)
+    */
 };
 /* clang-format on */
 
@@ -94,6 +96,7 @@ jit_compiler_get_pass_name(unsigned i)
     return i < COMPILER_PASS_NUM ? compiler_passes[i].name : NULL;
 }
 
+#if 0
 static bool
 is_fatal_error(unsigned error_code)
 {
@@ -107,12 +110,13 @@ is_fatal_error(unsigned error_code)
             return false;
     }
 }
+#endif
 
 bool
 jit_compiler_compile(WASMModule *module, uint32 func_idx)
 {
     JitCompContext *cc;
-    bool ret = false;
+    bool ret = true;
 
     /* Initialize compilation context.  */
     if (!(cc = jit_calloc(sizeof(*cc))))
@@ -123,10 +127,15 @@ jit_compiler_compile(WASMModule *module, uint32 func_idx)
         return false;
     }
 
-    /* TODO: create function contex */
+    cc->wasm_module = module;
+    cc->wasm_func = module->functions[func_idx];
+    cc->wasm_func_idx = func_idx;
+    cc->mem_space_unchanged =
+        (!cc->wasm_func->has_op_memory_grow && !cc->wasm_func->has_op_func_call)
+        || (!module->possible_memory_grow);
 
     /* Apply compiler passes.  */
-    if (apply_compiler_passes(cc))
+    if (!apply_compiler_passes(cc))
         ret = true;
 
     /* Delete the compilation context.  */
@@ -140,6 +149,7 @@ jit_compiler_compile_all(WASMModule *module)
 {
     JitCompContext *cc;
     bool ret = false;
+    uint32 i;
 
     /* Initialize compilation context.  */
     if (!(cc = jit_calloc(sizeof(*cc))))
@@ -150,11 +160,21 @@ jit_compiler_compile_all(WASMModule *module)
         return false;
     }
 
-    /* TODO: create function contex */
+    for (i = 0; i < module->function_count; i++) {
+        cc->wasm_module = module;
+        cc->wasm_func = module->functions[i];
+        cc->wasm_func_idx = i;
+        cc->mem_space_unchanged =
+            (!cc->wasm_func->has_op_memory_grow
+             && !cc->wasm_func->has_op_func_call)
+            || (!module->possible_memory_grow);
 
-    /* Apply compiler passes.  */
-    if (apply_compiler_passes(cc))
-        ret = true;
+        /* Apply compiler passes.  */
+        if (!apply_compiler_passes(cc)) {
+            ret = false;
+            break;
+        }
+    }
 
     /* Delete the compilation context.  */
     jit_cc_delete(cc);

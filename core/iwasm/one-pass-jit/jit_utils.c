@@ -1,7 +1,7 @@
 #include "jit_utils.h"
 
 JitBitmap *
-jit_bitmap_new(unsigned begin_index, unsigned bitnum)
+jit_bitmap_new(uintptr_t begin_index, unsigned bitnum)
 {
     JitBitmap *bitmap;
 
