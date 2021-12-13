@@ -105,7 +105,8 @@ handle_one_block(JitCompContext *cc, JitBasicBlock *cur_block,
                 /*entry.sp = *(jit_annl_end_sp(cc, cur_label));*/
 
                 /* Translate the target block. */
-                if (!(bbmap[offset] = translate_block(cc, target_bcip, is_reached)))
+                if (!(bbmap[offset] =
+                          translate_block(cc, target_bcip, is_reached)))
                     return false;
 
                 /* Push it onto stack. */
@@ -223,9 +224,55 @@ _jit_pass_lower_fe(JitCompContext *cc)
     return jit_frontend_lower(cc);
 }
 
+/**
+ * Helper function for GEN_INSN
+ *
+ * @param cc compilation context
+ * @param block the current block
+ * @param insn the new instruction
+ *
+ * @return the new instruction if inserted, NULL otherwise
+ */
+static inline JitInsn *
+_gen_insn(JitCompContext *cc, JitBasicBlock *block, JitInsn *insn)
+{
+    if (insn)
+        jit_basic_block_append_insn(block, insn);
+
+    return insn;
+}
+
+/**
+ * Generate and append an instruction to the current block.
+ */
+#define GEN_INSN(...) _gen_insn(cc, block, jit_cc_new_insn(cc, __VA_ARGS__))
+
+/**
+ * Create a constant register without relocation info.
+ *
+ * @param Type type of the register
+ * @param val the constant value
+ *
+ * @return the constant register if succeeds, 0 otherwise
+ */
+#define NEW_CONST(Type, val) jit_cc_new_const_##Type(cc, val)
+
 JitBasicBlock *
 jit_frontend_translate_block(JitCompContext *cc, uint8 *bcip,
                              JitBitmap *is_reached)
 {
-    return NULL;
+    printf("##jit_frontend_translate_block\n");
+
+    JitBasicBlock *block = jit_cc_new_basic_block(cc, 0);
+    JitReg r1 = jit_cc_new_reg_I32(cc);
+    JitReg r2 = jit_cc_new_reg_I32(cc);
+    JitReg r3 = jit_cc_new_reg_I64(cc);
+    JitReg r4 = jit_cc_new_reg_I32(cc);
+    JitReg r5 = jit_cc_new_reg_I64(cc);
+    GEN_INSN(MOV, r2, r1);
+    GEN_INSN(MOV, r3, cc->fp_reg);
+    GEN_INSN(LDI32, r4, cc->fp_reg, NEW_CONST(I32, 16));
+    GEN_INSN(LDI64, r5, cc->exec_env_reg, NEW_CONST(I32, 32));
+
+    return block;
 }

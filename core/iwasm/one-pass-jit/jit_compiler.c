@@ -11,8 +11,15 @@ typedef struct JitGlobals {
     uint32 code_cache_size;
 } JitGlobals;
 
+static const uint8 compiler_passes_without_dump[] = { 3, 4, 5, 6, 7, 8, 9, 0 };
+
+static const uint8 compiler_passes_with_dump[] = {
+    2, 1, /*4, 1, 5, 1, 6, 1, 7, 1, 8, 1, 9,*/ 0
+};
+
 /* The exported global data of JIT compiler.  */
-JitGlobals jit_globals;
+JitGlobals jit_globals = { .passes = compiler_passes_with_dump,
+                           .code_cache_size = 1024 * 1024 };
 
 typedef struct JitCompilerPass {
     /* Name of the pass.  */
@@ -69,7 +76,7 @@ bool
 jit_compiler_init()
 {
     /* TODO: get code cache size with global configs */
-    if (!jit_code_cache_init(2 * 1024 * 1024))
+    if (!jit_code_cache_init(jit_globals.code_cache_size))
         return false;
 
     if (!jit_codegen_init())
@@ -164,10 +171,9 @@ jit_compiler_compile_all(WASMModule *module)
         cc->wasm_module = module;
         cc->wasm_func = module->functions[i];
         cc->wasm_func_idx = i;
-        cc->mem_space_unchanged =
-            (!cc->wasm_func->has_op_memory_grow
-             && !cc->wasm_func->has_op_func_call)
-            || (!module->possible_memory_grow);
+        cc->mem_space_unchanged = (!cc->wasm_func->has_op_memory_grow
+                                   && !cc->wasm_func->has_op_func_call)
+                                  || (!module->possible_memory_grow);
 
         /* Apply compiler passes.  */
         if (!apply_compiler_passes(cc)) {

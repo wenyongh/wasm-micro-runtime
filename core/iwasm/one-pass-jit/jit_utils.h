@@ -40,7 +40,8 @@ jit_calloc(unsigned int size)
 static inline void
 jit_free(void *ptr)
 {
-    wasm_runtime_free(ptr);
+    if (ptr)
+        wasm_runtime_free(ptr);
 }
 
 /**

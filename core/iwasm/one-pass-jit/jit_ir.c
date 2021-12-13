@@ -422,18 +422,25 @@ jit_cc_init(JitCompContext *cc, unsigned htab_size)
     bh_assert(cc->hreg_info->info[JIT_REG_KIND_I32].num > 3);
 
     /* Initialize virtual registers for hard registers.  */
-    for (i = JIT_REG_KIND_VOID; i < JIT_REG_KIND_L32; i++)
+    for (i = JIT_REG_KIND_VOID; i < JIT_REG_KIND_L32; i++) {
         if ((num = cc->hreg_info->info[i].num)) {
             /* Initialize the capacity to be large enough.  */
             jit_cc_new_reg(cc, i);
             bh_assert(cc->_ann._reg_capacity[i] > num);
             cc->_ann._reg_num[i] = num;
         }
+    }
 
     /* Create registers for frame pointer, exec_env and cmp.  */
+#if UINTPTR_MAX == UINT32_MAX
     cc->fp_reg = jit_reg_new(JIT_REG_KIND_I32, cc->hreg_info->fp_hreg_index);
     cc->exec_env_reg =
         jit_reg_new(JIT_REG_KIND_I32, cc->hreg_info->exec_env_hreg_index);
+#else
+    cc->fp_reg = jit_reg_new(JIT_REG_KIND_I64, cc->hreg_info->fp_hreg_index);
+    cc->exec_env_reg =
+        jit_reg_new(JIT_REG_KIND_I64, cc->hreg_info->exec_env_hreg_index);
+#endif
     cc->cmp_reg = jit_reg_new(JIT_REG_KIND_I32, cc->hreg_info->cmp_hreg_index);
 
     cc->_const_val._hash_table_size = htab_size;
@@ -1279,8 +1286,6 @@ jit_block_destroy(JitBlock *block)
     wasm_runtime_free(block);
 }
 
-#if JIT_ENABLE_SELF_VERIFICATION != 0
-
 bool
 _jit_insn_check_opnd_access_Reg(const JitInsn *insn, unsigned n)
 {
@@ -1310,5 +1315,3 @@ _jit_insn_check_opnd_access_LookupSwitch(const JitInsn *insn)
     unsigned opcode = insn->opcode;
     return (insn_opnd_kind[opcode] == JIT_OPND_KIND_LookupSwitch);
 }
-
-#endif

@@ -2145,7 +2145,6 @@ load_from_sections(WASMModule *module, WASMSection *sections,
     if (!jit_compiler_compile_all(module)) {
         set_error_buf(error_buf, error_buf_size,
                       "one pass jit compilation failed");
-        wasm_unload(module);
         return false;
     }
 #endif

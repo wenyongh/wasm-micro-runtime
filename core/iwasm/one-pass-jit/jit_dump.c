@@ -290,22 +290,20 @@ dump_cc_ir(JitCompContext *cc)
 void
 jit_dump_cc(JitCompContext *cc)
 {
-  if (jit_cc_label_num (cc) <= 2)
-    return;
+    if (jit_cc_label_num(cc) <= 2)
+        return;
 
-  dump_cc_ir (cc);
+    dump_cc_ir(cc);
 }
 
 bool
 _jit_pass_dump(JitCompContext *cc)
 {
-    os_printf ("JIT.COMPILER.DUMP: PASS_NO=%d PREV_PASS=%s\n\n",
-            cc->pass_no,
-            (cc->pass_no > 0
-             ? jit_compiler_get_pass_name (cc->pass_no)
-             : "NULL"));
-    jit_dump_cc (cc);
-    os_printf ("\n");
+    os_printf(
+        "JIT.COMPILER.DUMP: PASS_NO=%d PREV_PASS=%s\n\n", cc->pass_no,
+        (cc->pass_no > 0 ? jit_compiler_get_pass_name(cc->pass_no) : "NULL"));
+    jit_dump_cc(cc);
+    os_printf("\n");
     return true;
 }
 
