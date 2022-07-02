@@ -76,9 +76,6 @@ load_block_params(JitCompContext *cc, JitBlock *block)
     uint32 offset, i;
     JitReg value = 0;
 
-    /* Clear jit frame's locals and stacks */
-    clear_values(jit_frame);
-
     /* Restore jit frame's sp to block's sp begin */
     jit_frame->sp = block->frame_sp_begin;
 
@@ -174,7 +171,7 @@ push_jit_block_to_stack_and_pass_params(JitCompContext *cc, JitBlock *block,
     JitReg value;
     uint32 i, param_index, cell_num;
 
-    if (cc->cur_basic_block == basic_block) {
+    if (cc->cur_basic_block == basic_block && !cond) {
         /* Reuse the current basic block and no need to commit values,
            we just move param values from current block's value stack to
            the new block's value stack */
@@ -204,7 +201,7 @@ push_jit_block_to_stack_and_pass_params(JitCompContext *cc, JitBlock *block,
 
         /* Continue to translate current block */
     }
-    else {
+    else { /* IF block or LOOP block */
         /* Commit register values to locals and stacks */
         gen_commit_values(jit_frame, jit_frame->lp, jit_frame->sp);
 
@@ -214,22 +211,21 @@ push_jit_block_to_stack_and_pass_params(JitCompContext *cc, JitBlock *block,
             POP(value, block->param_types[param_index]);
         }
 
-        /* Clear frame values */
-        clear_values(jit_frame);
+        if (!cond) {
+            /* Clear frame values */
+            clear_values(jit_frame);
+        }
+
         /* Save block's begin frame sp */
         block->frame_sp_begin = jit_frame->sp;
 
         /* Push the new block to block stack */
         jit_block_stack_push(&cc->block_stack, block);
 
-        if (block->label_type == LABEL_TYPE_LOOP) {
-            BUILD_BR(basic_block);
-        }
-        else {
+        if (cond) {
             /* IF block with condition br insn */
             if (!GEN_INSN(CMP, cc->cmp_reg, cond, NEW_CONST(I32, 0))
-                || !(insn = GEN_INSN(BNE, cc->cmp_reg,
-                                     jit_basic_block_label(basic_block), 0))) {
+                || !(insn = GEN_INSN(BEQ, cc->cmp_reg, 0, 0))) {
                 jit_set_last_error(cc, "generate cond br failed");
                 goto fail;
             }
@@ -241,21 +237,26 @@ push_jit_block_to_stack_and_pass_params(JitCompContext *cc, JitBlock *block,
                 block->incoming_insn_for_else_bb = insn;
             }
             else {
-                if (!jit_block_add_incoming_insn(block, insn, 2)) {
+                if (!jit_block_add_incoming_insn(block, insn, 1)) {
                     jit_set_last_error(cc, "add incoming insn failed");
                     goto fail;
                 }
             }
         }
+        else {
+            /* LOOP block */
+            BUILD_BR(basic_block);
 
-        /* Start to translate the block */
-        SET_BUILDER_POS(basic_block);
+            /* Start to translate the block */
+            SET_BUILDER_POS(basic_block);
+        }
 
         /* Push the block parameters */
         if (!load_block_params(cc, block)) {
             goto fail;
         }
     }
+
     return true;
 fail:
     return false;
@@ -449,7 +450,8 @@ handle_op_end(JitCompContext *cc, uint8 **p_frame_ip, bool is_block_polymorphic)
         incoming_insn = block->incoming_insns_for_end_bb;
         while (incoming_insn) {
             insn = incoming_insn->insn;
-            bh_assert(insn->opcode == JIT_OP_JMP || insn->opcode == JIT_OP_BNE);
+            bh_assert(insn->opcode == JIT_OP_JMP || insn->opcode == JIT_OP_BNE
+                      || insn->opcode == JIT_OP_BEQ);
             *(jit_insn_opnd(insn, incoming_insn->opnd_idx)) =
                 jit_basic_block_label(block->basic_block_end);
             incoming_insn = incoming_insn->next;
@@ -538,16 +540,16 @@ handle_op_else(JitCompContext *cc, uint8 **p_frame_ip,
 
         /* create else basic block */
         CREATE_BASIC_BLOCK(block->basic_block_else);
-        SET_BB_END_BCIP(block->basic_block_entry, *p_frame_ip - 1);
         SET_BB_BEGIN_BCIP(block->basic_block_else, *p_frame_ip);
 
         /* Patch the insn which conditionly jumps to the else basic block */
         insn = block->incoming_insn_for_else_bb;
-        *(jit_insn_opnd(insn, 2)) =
+        *(jit_insn_opnd(insn, 1)) =
             jit_basic_block_label(block->basic_block_else);
 
         SET_BUILDER_POS(block->basic_block_else);
 
+        clear_values(cc->jit_frame);
         /* Reload block parameters */
         if (!load_block_params(cc, block)) {
             return false;
@@ -675,14 +677,8 @@ jit_compile_op_block(JitCompContext *cc, uint8 **p_frame_ip,
 
         if (!jit_reg_is_const_val(value)) {
             /* Compare value is not constant, create condition br IR */
-
-            /* Create entry block */
-            CREATE_BASIC_BLOCK(block->basic_block_entry);
-            SET_BB_END_BCIP(cc->cur_basic_block, *p_frame_ip - 1);
-            SET_BB_BEGIN_BCIP(block->basic_block_entry, *p_frame_ip);
-
             if (!push_jit_block_to_stack_and_pass_params(
-                    cc, block, block->basic_block_entry, value))
+                    cc, block, cc->cur_basic_block, value))
                 goto fail;
         }
         else {
