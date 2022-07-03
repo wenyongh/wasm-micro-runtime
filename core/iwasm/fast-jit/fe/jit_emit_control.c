@@ -205,13 +205,19 @@ push_jit_block_to_stack_and_pass_params(JitCompContext *cc, JitBlock *block,
         /* Commit register values to locals and stacks */
         gen_commit_values(jit_frame, jit_frame->lp, jit_frame->sp);
 
+        bh_assert(cond || block->label_type == LABEL_TYPE_LOOP);
+
         /* Pop param values from current block's value stack */
         for (i = 0; i < block->param_count; i++) {
             param_index = block->param_count - 1 - i;
             POP(value, block->param_types[param_index]);
         }
 
-        if (!cond) {
+        if (cond) {
+            /* Update interpreter frame's sp */
+            gen_commit_sp_ip(jit_frame);
+        }
+        else {
             /* Clear frame values */
             clear_values(jit_frame);
         }
