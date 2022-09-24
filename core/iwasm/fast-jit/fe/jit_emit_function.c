@@ -289,9 +289,11 @@ jit_compile_op_call(JitCompContext *cc, uint32 func_idx, bool tail_call)
 
         /* Allocate memory for argvs*/
         total_size = sizeof(JitReg) * (uint64)(func_type->param_count);
-        if (total_size >= UINT32_MAX
-            || !(argvs = jit_malloc((uint32)total_size))) {
-            goto fail;
+        if (total_size > 0) {
+            if (total_size >= UINT32_MAX
+                || !(argvs = jit_malloc((uint32)total_size))) {
+                goto fail;
+            }
         }
 
         /* Pop function params from stack and store them into argvs */
