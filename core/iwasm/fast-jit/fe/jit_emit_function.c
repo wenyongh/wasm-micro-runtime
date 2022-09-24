@@ -227,7 +227,7 @@ jit_compile_op_call(JitCompContext *cc, uint32 func_idx, bool tail_call)
     JitFrame *jit_frame = cc->jit_frame;
     JitReg fast_jit_func_ptrs, jitted_code = 0;
     JitReg native_func, *argvs = NULL, *argvs1 = NULL, func_params[5];
-    JitReg native_addr_ptr, ret, res;
+    JitReg native_addr_ptr, module_inst_reg, ret, res;
     uint32 jitted_func_idx, i;
     uint64 total_size;
     const char *signature = NULL;
@@ -300,7 +300,7 @@ jit_compile_op_call(JitCompContext *cc, uint32 func_idx, bool tail_call)
         }
 
         ret = jit_cc_new_reg_I32(cc);
-        func_params[0] = get_module_inst_reg(jit_frame);
+        func_params[0] = module_inst_reg = get_module_inst_reg(jit_frame);
         func_params[4] = native_addr_ptr = jit_cc_new_reg_ptr(cc);
         GEN_INSN(ADD, native_addr_ptr, cc->exec_env_reg,
                  NEW_CONST(PTR, offsetof(WASMExecEnv, jit_cache)));
@@ -377,6 +377,15 @@ jit_compile_op_call(JitCompContext *cc, uint32 func_idx, bool tail_call)
             goto fail;
         }
         jit_free(argvs1);
+
+        /* Check whether there is exception thrown */
+        GEN_INSN(LDI8, ret, module_inst_reg,
+                 NEW_CONST(I32, offsetof(WASMModuleInstance, cur_exception)));
+        GEN_INSN(CMP, cc->cmp_reg, ret, NEW_CONST(I32, 0));
+        if (!jit_emit_exception(cc, JIT_EXCE_ALREADY_THROWN, JIT_OP_BNE,
+                                cc->cmp_reg, NULL)) {
+            goto fail;
+        }
 
         if (!post_return(cc, func_type, res, false)) {
             goto fail;
