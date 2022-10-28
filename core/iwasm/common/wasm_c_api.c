@@ -396,7 +396,7 @@ wasm_engine_delete(wasm_engine_t *engine)
 
     os_mutex_unlock(&engine_lock);
 
-#if defined(OS_THREAD_MUTEX_INITIALIZER)
+#if !defined(OS_THREAD_MUTEX_INITIALIZER)
     if (!singleton_engine) {
         os_mutex_destroy(&engine_lock);
     }
