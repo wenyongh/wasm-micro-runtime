@@ -54,7 +54,6 @@ typedef unsigned int korp_sem;
 
 #ifndef SGX_DISABLE_PTHREAD
 #define OS_THREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
-#define OS_THREAD_COND_INITIALIZER PTHREAD_COND_INITIALIZER
 #endif
 
 typedef int (*os_print_function_t)(const char *message);

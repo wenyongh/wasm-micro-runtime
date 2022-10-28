@@ -327,45 +327,80 @@ wasm_engine_new_internal(mem_alloc_type_t type, const MemAllocOption *opts)
 
 /* global engine instance */
 static wasm_engine_t *singleton_engine = NULL;
+#if defined(OS_THREAD_MUTEX_INITIALIZER)
+static korp_mutex engine_lock = OS_THREAD_MUTEX_INITIALIZER;
+#else
+static korp_mutex engine_lock;
+#endif
+
+own wasm_engine_t *
+wasm_engine_new_with_args(mem_alloc_type_t type, const MemAllocOption *opts)
+{
+#if !defined(OS_THREAD_MUTEX_INITIALIZER)
+    if (!singleton_engine) {
+        if (os_mutex_init(&engine_lock) != 0) {
+            return NULL;
+        }
+    }
+#endif
+
+    os_mutex_lock(&engine_lock);
+
+    if (!singleton_engine) {
+        singleton_engine = wasm_engine_new_internal(type, opts);
+    }
+
+    if (singleton_engine) {
+        singleton_engine->ref_count++;
+    }
+
+    os_mutex_unlock(&engine_lock);
+
+#if !defined(OS_THREAD_MUTEX_INITIALIZER)
+    if (!singleton_engine) {
+        /* failed to new engine */
+        os_mutex_destroy(&engine_lock);
+    }
+#endif
+
+    return singleton_engine;
+}
 
 own wasm_engine_t *
 wasm_engine_new()
 {
-    if (!singleton_engine) {
-        singleton_engine =
-            wasm_engine_new_internal(Alloc_With_System_Allocator, NULL);
-    }
-    if (singleton_engine)
-        singleton_engine->ref_count++;
-    return singleton_engine;
+    return wasm_engine_new_with_args(Alloc_With_System_Allocator, NULL);
 }
 
 own wasm_engine_t *
 wasm_engine_new_with_config(own wasm_config_t *config)
 {
     (void)config;
-    return wasm_engine_new();
+    return wasm_engine_new_with_args(Alloc_With_System_Allocator, NULL);
 }
 
-own wasm_engine_t *
-wasm_engine_new_with_args(mem_alloc_type_t type, const MemAllocOption *opts)
-{
-    if (!singleton_engine) {
-        singleton_engine = wasm_engine_new_internal(type, opts);
-    }
-    if (singleton_engine)
-        singleton_engine->ref_count++;
-    return singleton_engine;
-}
-
-/* BE AWARE: will RESET the singleton */
 void
 wasm_engine_delete(wasm_engine_t *engine)
 {
-    if (engine && (--engine->ref_count == 0)) {
-        wasm_engine_delete_internal(engine);
-        singleton_engine = NULL;
+    bh_assert(singleton_engine && engine == singleton_engine);
+
+    os_mutex_lock(&engine_lock);
+
+    if (singleton_engine->ref_count > 0) {
+        singleton_engine->ref_count--;
+        if (singleton_engine->ref_count == 0) {
+            wasm_engine_delete_internal(engine);
+            singleton_engine = NULL;
+        }
     }
+
+    os_mutex_unlock(&engine_lock);
+
+#if defined(OS_THREAD_MUTEX_INITIALIZER)
+    if (!singleton_engine) {
+        os_mutex_destroy(&engine_lock);
+    }
+#endif
 }
 
 wasm_store_t *

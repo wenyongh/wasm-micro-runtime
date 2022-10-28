@@ -42,7 +42,6 @@ typedef pthread_t korp_thread;
 typedef unsigned int korp_sem;
 
 #define OS_THREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
-#define OS_THREAD_COND_INITIALIZER PTHREAD_COND_INITIALIZER
 
 #define BH_APPLET_PRESERVED_STACK_SIZE (2 * BH_KB)
 
