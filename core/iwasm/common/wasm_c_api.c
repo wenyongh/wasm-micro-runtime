@@ -380,7 +380,7 @@ wasm_engine_delete(wasm_engine_t *engine)
     os_mutex_lock(&engine_lock);
 #endif
 
-    if(!engine || !singleton_engine || engine != singleton_engine) {
+    if (!engine || !singleton_engine || engine != singleton_engine) {
 #if defined(OS_THREAD_MUTEX_INITIALIZER)
         os_mutex_unlock(&engine_lock);
 #endif
