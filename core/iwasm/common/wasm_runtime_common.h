@@ -369,9 +369,13 @@ typedef struct WASIContext {
     char **argv_list;
     char *env_buf;
     char **env_list;
+    uint32_t exit_code;
 } WASIContext;
 #else
-typedef uvwasi_t WASIContext;
+typedef struct WASIContext {
+    uvwasi_t uvwasi;
+    uint32_t exit_code;
+} WASIContext;
 #endif
 #endif
 
@@ -483,6 +487,10 @@ wasm_runtime_instantiate(WASMModuleCommon *module, uint32 stack_size,
 /* See wasm_export.h for description */
 WASM_RUNTIME_API_EXTERN void
 wasm_runtime_deinstantiate(WASMModuleInstanceCommon *module_inst);
+
+/* See wasm_export.h for description */
+WASM_RUNTIME_API_EXTERN WASMModuleCommon *
+wasm_runtime_get_module(WASMModuleInstanceCommon *module_inst);
 
 /* See wasm_export.h for description */
 WASM_RUNTIME_API_EXTERN WASMFunctionInstanceCommon *
@@ -767,6 +775,10 @@ wasm_runtime_is_wasi_mode(WASMModuleInstanceCommon *module_inst);
 /* See wasm_export.h for description */
 WASM_RUNTIME_API_EXTERN WASMFunctionInstanceCommon *
 wasm_runtime_lookup_wasi_start_function(WASMModuleInstanceCommon *module_inst);
+
+/* See wasm_export.h for description */
+WASM_RUNTIME_API_EXTERN uint32_t
+wasm_runtime_get_wasi_exit_code(WASMModuleInstanceCommon *module_inst);
 
 bool
 wasm_runtime_init_wasi(WASMModuleInstanceCommon *module_inst,

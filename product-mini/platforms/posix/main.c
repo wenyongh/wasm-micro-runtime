@@ -32,7 +32,7 @@ print_help()
     printf("  -v=n                     Set log verbose level (0 to 5, default is 2) larger\n"
            "                           level with more log\n");
 #endif
-    printf("  --stack-size=n           Set maximum stack size in bytes, default is 16 KB\n");
+    printf("  --stack-size=n           Set maximum stack size in bytes, default is 64 KB\n");
     printf("  --heap-size=n            Set maximum heap size in bytes, default is 16 KB\n");
 #if WASM_ENABLE_FAST_JIT != 0
     printf("  --jit-codecache-size=n   Set fast jit maximum code cache size in bytes,\n");
@@ -86,7 +86,7 @@ app_instance_main(wasm_module_inst_t module_inst)
     wasm_application_execute_main(module_inst, app_argc, app_argv);
     if ((exception = wasm_runtime_get_exception(module_inst)))
         printf("%s\n", exception);
-    return NULL;
+    return exception;
 }
 
 static void *
@@ -96,7 +96,7 @@ app_instance_func(wasm_module_inst_t module_inst, const char *func_name)
                                   app_argv + 1);
     /* The result of wasm function or exception info was output inside
        wasm_application_execute_func(), here we don't output them again. */
-    return NULL;
+    return wasm_runtime_get_exception(module_inst);
 }
 
 /**
@@ -341,7 +341,7 @@ main(int argc, char *argv[])
     const char *func_name = NULL;
     uint8 *wasm_file_buf = NULL;
     uint32 wasm_file_size;
-    uint32 stack_size = 16 * 1024, heap_size = 16 * 1024;
+    uint32 stack_size = 64 * 1024, heap_size = 16 * 1024;
 #if WASM_ENABLE_FAST_JIT != 0
     uint32 jit_code_cache_size = FAST_JIT_DEFAULT_CODE_CACHE_SIZE;
 #endif
@@ -643,14 +643,29 @@ main(int argc, char *argv[])
     }
 #endif
 
-    if (is_repl_mode)
-        app_instance_repl(wasm_module_inst);
-    else if (func_name)
-        app_instance_func(wasm_module_inst, func_name);
-    else
-        app_instance_main(wasm_module_inst);
-
     ret = 0;
+    if (is_repl_mode) {
+        app_instance_repl(wasm_module_inst);
+    }
+    else if (func_name) {
+        if (app_instance_func(wasm_module_inst, func_name)) {
+            /* got an exception */
+            ret = 1;
+        }
+    }
+    else {
+        if (app_instance_main(wasm_module_inst)) {
+            /* got an exception */
+            ret = 1;
+        }
+    }
+
+#if WASM_ENABLE_LIBC_WASI != 0
+    if (ret == 0) {
+        /* propagate wasi exit code. */
+        ret = wasm_runtime_get_wasi_exit_code(wasm_module_inst);
+    }
+#endif
 
 #if WASM_ENABLE_DEBUG_INTERP != 0
 fail4:
