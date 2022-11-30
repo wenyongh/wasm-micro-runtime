@@ -6,6 +6,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -78,7 +79,7 @@ print_help()
 }
 /* clang-format on */
 
-static void *
+static const void *
 app_instance_main(wasm_module_inst_t module_inst)
 {
     const char *exception;
@@ -89,7 +90,7 @@ app_instance_main(wasm_module_inst_t module_inst)
     return exception;
 }
 
-static void *
+static const void *
 app_instance_func(wasm_module_inst_t module_inst, const char *func_name)
 {
     wasm_application_execute_func(module_inst, func_name, app_argc - 1,
@@ -149,7 +150,9 @@ app_instance_repl(wasm_module_inst_t module_inst)
     size_t len = 0;
     ssize_t n;
 
-    while ((printf("webassembly> "), n = getline(&cmd, &len, stdin)) != -1) {
+    while ((printf("webassembly> "), fflush(stdout),
+            n = getline(&cmd, &len, stdin))
+           != -1) {
         bh_assert(n > 0);
         if (cmd[n - 1] == '\n') {
             if (n == 1)
