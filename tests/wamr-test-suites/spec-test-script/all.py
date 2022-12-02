@@ -76,9 +76,7 @@ def ignore_the_case(
             return True
 
     if qemu_flag:
-        if case_name in ["f32_bitwise", "f64_bitwise", "loop", "f64", "f64_cmp",
-                         "conversions", "f32", "f32_cmp", "float_exprs",
-                         "float_misc", "select", "memory_grow"]:
+        if case_name in ["f32_bitwise", "f64_bitwise", "loop", "f64", "f64_cmp", "conversions", "f32", "f32_cmp", "float_exprs", "float_misc", "select", "memory_grow"]:
             return True
 
     return False
