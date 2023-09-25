@@ -369,7 +369,6 @@ jobs:
 
       - name: Get LLVM libraries
         id: retrieve_llvm_libs
-        if: (!endsWith(matrix.make_options, '_INTERP_BUILD_OPTIONS'))
         uses: actions/cache@v3
         with:
           path: |
@@ -381,7 +380,6 @@ jobs:
           key: ${{ matrix.llvm_cache_key }}
 
       - name: Build wamrc
-        if: (!endsWith(matrix.make_options, '_INTERP_BUILD_OPTIONS'))
         run: |
           mkdir build && cd build
           cmake ..
