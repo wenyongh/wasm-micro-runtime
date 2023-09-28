@@ -55,7 +55,8 @@ PLATFORM=$(uname -s | tr A-Z a-z)
 PARALLELISM=0
 ENABLE_QEMU=0
 QEMU_FIRMWARE=""
-WASI_TESTSUITE_COMMIT="aca78d919355ae00af141e6741a439039615b257"
+# prod/testsuite-all branch
+WASI_TESTSUITE_COMMIT="cf64229727f71043d5849e73934e249e12cb9e06"
 
 while getopts ":s:cabgvt:m:MCpSXxwPGQF:" opt
 do
@@ -332,6 +333,9 @@ function spec_test()
     if [[ ${ENABLE_SIMD} == 1 ]]; then
         git apply ../../spec-test-script/simd_ignore_cases.patch
     fi
+    if [[ ${ENABLE_MULTI_MODULE} == 1 && $1 == 'aot'  ]]; then
+        git apply ../../spec-test-script/muti_module_aot_ignore_cases.patch
+    fi
 
     # udpate thread cases
     if [ ${ENABLE_MULTI_THREAD} == 1 ]; then
@@ -423,7 +427,7 @@ function spec_test()
 
     # multi-module only enable in interp mode
     if [[ 1 == ${ENABLE_MULTI_MODULE} ]]; then
-        if [[ $1 == 'classic-interp' || $1 == 'fast-interp' ]]; then
+        if [[ $1 == 'classic-interp' || $1 == 'fast-interp' || $1 == 'aot' ]]; then
             ARGS_FOR_SPEC_TEST+="-M "
         fi
     fi
