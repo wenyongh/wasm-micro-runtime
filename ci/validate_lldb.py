@@ -77,7 +77,7 @@ for case, cmd in test_cases.items():
     wamr_process = subprocess.Popen(shlex.split(
         wamr_cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
-    time.sleep(0.2)
+    time.sleep(0.1)
     if (wamr_process.poll() != None):
         print("\nWAMR doesn't wait for lldb connection")
         print_process_output(wamr_process)
@@ -122,7 +122,7 @@ for case, cmd in test_cases.items():
     print(f'\t OK')
 
     # wait 100ms to ensure the socket is closed
-    time.sleep(0.2)
+    time.sleep(0.1)
 
 print('Validate lldb success')
 exit(0)
