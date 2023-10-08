@@ -2955,18 +2955,21 @@ create_module(char *error_buf, uint32 error_buf_size)
 {
     AOTModule *module =
         loader_malloc(sizeof(AOTModule), error_buf, error_buf_size);
-
     bh_list_status ret;
+
     if (!module) {
         return NULL;
     }
+
     module->module_type = Wasm_Module_AoT;
+
 #if WASM_ENABLE_MULTI_MODULE != 0
     module->import_module_list = &module->import_module_list_head;
     ret = bh_list_init(module->import_module_list);
     bh_assert(ret == BH_LIST_SUCCESS);
 #endif
     (void)ret;
+
     return module;
 }
 
@@ -3232,10 +3235,13 @@ aot_load_from_aot_file(const uint8 *buf, uint32 size, char *error_buf,
     if (!module)
         return NULL;
 
+    os_thread_jit_write_protect_np(false); /* Make memory writable */
     if (!load(buf, size, module, error_buf, error_buf_size)) {
         aot_unload(module);
         return NULL;
     }
+    os_thread_jit_write_protect_np(true); /* Make memory executable */
+    os_icache_flush(module->code, module->code_size);
 
     LOG_VERBOSE("Load module success.\n");
     return module;
