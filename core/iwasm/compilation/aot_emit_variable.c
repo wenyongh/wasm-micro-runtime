@@ -105,9 +105,28 @@ aot_compile_op_set_local(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
                 break;
             case VALUE_TYPE_FUNCREF:
             case VALUE_TYPE_EXTERNREF:
-                set_local_ref(comp_ctx->aot_frame, n, value, local_type);
+                if (comp_ctx->enable_ref_types)
+                    set_local_ref(comp_ctx->aot_frame, n, value, local_type);
+#if WASM_ENABLE_GC != 0
+                else if (comp_ctx->enable_gc)
+                    set_local_gc_ref(comp_ctx->aot_frame, n, value,
+                                     VALUE_TYPE_GC_REF);
+#endif
+                else
+                    bh_assert(0);
                 break;
-            /* TODO: handle GC ref types */
+#if WASM_ENABLE_GC != 0
+            case VALUE_TYPE_STRUCTREF:
+            case VALUE_TYPE_ARRAYREF:
+            case VALUE_TYPE_I31REF:
+            case VALUE_TYPE_EQREF:
+            case VALUE_TYPE_ANYREF:
+            case VALUE_TYPE_HT_NULLABLE_REF:
+                bh_assert(comp_ctx->enable_gc);
+                set_local_gc_ref(comp_ctx->aot_frame, n, value,
+                                 VALUE_TYPE_GC_REF);
+                break;
+#endif
             default:
                 bh_assert(0);
                 break;

@@ -196,6 +196,11 @@ store_value(AOTCompContext *comp_ctx, LLVMValueRef value, uint8 value_type,
         case VALUE_TYPE_V128:
             value_ptr_type = V128_PTR_TYPE;
             break;
+#if WASM_ENABLE_GC != 0
+        case VALUE_TYPE_GC_REF:
+            value_ptr_type = GC_REF_PTR_TYPE;
+            break;
+#endif
         default:
             bh_assert(0);
             break;
@@ -282,6 +287,16 @@ aot_gen_commit_values(AOTCompFrame *frame)
                                  offset_of_local(comp_ctx, n)))
                     return false;
                 break;
+#if WASM_ENABLE_GC != 0
+            case VALUE_TYPE_GC_REF:
+                if (comp_ctx->pointer_size == sizeof(uint64))
+                    (++p)->dirty = 0;
+                if (!store_value(comp_ctx, value, VALUE_TYPE_GC_REF,
+                                 func_ctx->cur_frame,
+                                 offset_of_local(comp_ctx, n)))
+                    return false;
+                break;
+#endif
             default:
                 bh_assert(0);
                 break;
@@ -491,9 +506,37 @@ init_comp_frame(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
                 break;
             case VALUE_TYPE_FUNCREF:
             case VALUE_TYPE_EXTERNREF:
-                set_local_ref(comp_ctx->aot_frame, n, local_value, local_type);
-                n++;
+            {
+                if (comp_ctx->enable_ref_types) {
+                    set_local_ref(comp_ctx->aot_frame, n, local_value,
+                                  local_type);
+                    n++;
+                }
+#if WASM_ENABLE_GC != 0
+                else if (comp_ctx->enable_gc) {
+                    set_local_gc_ref(comp_ctx->aot_frame, n, local_value,
+                                     VALUE_TYPE_GC_REF);
+                    n += comp_ctx->pointer_size / sizeof(uint32);
+                }
+#endif
+                else {
+                    bh_assert(0);
+                }
                 break;
+            }
+#if WASM_ENABLE_GC != 0
+            case VALUE_TYPE_STRUCTREF:
+            case VALUE_TYPE_ARRAYREF:
+            case VALUE_TYPE_I31REF:
+            case VALUE_TYPE_EQREF:
+            case VALUE_TYPE_ANYREF:
+            case VALUE_TYPE_HT_NULLABLE_REF:
+                bh_assert(comp_ctx->enable_gc);
+                set_local_gc_ref(comp_ctx->aot_frame, n, local_value,
+                                 VALUE_TYPE_GC_REF);
+                n += comp_ctx->pointer_size / sizeof(uint32);
+                break;
+#endif
             default:
                 bh_assert(0);
                 break;
@@ -528,9 +571,36 @@ init_comp_frame(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
                 break;
             case VALUE_TYPE_FUNCREF:
             case VALUE_TYPE_EXTERNREF:
-                set_local_ref(comp_ctx->aot_frame, n, I32_ZERO, local_type);
-                n++;
+            {
+                if (comp_ctx->enable_ref_types) {
+                    set_local_ref(comp_ctx->aot_frame, n, I32_ZERO, local_type);
+                    n++;
+                }
+#if WASM_ENABLE_GC != 0
+                else if (comp_ctx->enable_gc) {
+                    set_local_gc_ref(comp_ctx->aot_frame, n, GC_REF_NULL,
+                                     VALUE_TYPE_GC_REF);
+                    n += comp_ctx->pointer_size / sizeof(uint32);
+                }
+#endif
+                else {
+                    bh_assert(0);
+                }
                 break;
+            }
+#if WASM_ENABLE_GC != 0
+            case VALUE_TYPE_STRUCTREF:
+            case VALUE_TYPE_ARRAYREF:
+            case VALUE_TYPE_I31REF:
+            case VALUE_TYPE_EQREF:
+            case VALUE_TYPE_ANYREF:
+            case VALUE_TYPE_HT_NULLABLE_REF:
+                bh_assert(comp_ctx->enable_gc);
+                set_local_gc_ref(comp_ctx->aot_frame, n, GC_REF_NULL,
+                                 VALUE_TYPE_GC_REF);
+                n += comp_ctx->pointer_size / sizeof(uint32);
+                break;
+#endif
             default:
                 bh_assert(0);
                 break;

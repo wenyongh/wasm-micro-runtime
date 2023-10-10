@@ -42,9 +42,18 @@ wasm_type_to_llvm_type(const AOTLLVMTypes *llvm_types, uint8 wasm_type)
             return llvm_types->i64x2_vec_type;
         case VALUE_TYPE_VOID:
             return llvm_types->void_type;
+#if WASM_ENABLE_GC != 0
+        case VALUE_TYPE_STRUCTREF:
+        case VALUE_TYPE_ARRAYREF:
+        case VALUE_TYPE_I31REF:
+        case VALUE_TYPE_EQREF:
+        case VALUE_TYPE_ANYREF:
+        case VALUE_TYPE_HT_NULLABLE_REF:
         case VALUE_TYPE_GC_REF:
             return llvm_types->gc_ref_type;
+#endif
         default:
+            bh_assert(0);
             break;
     }
     return NULL;
@@ -1016,8 +1025,21 @@ create_local_variables(const AOTCompData *comp_data,
                 break;
             case VALUE_TYPE_FUNCREF:
             case VALUE_TYPE_EXTERNREF:
-                local_value = REF_NULL;
+                if (!comp_ctx->enable_gc)
+                    local_value = REF_NULL;
+                else
+                    local_value = GC_REF_NULL;
                 break;
+#if WASM_ENABLE_GC != 0
+            case VALUE_TYPE_STRUCTREF:
+            case VALUE_TYPE_ARRAYREF:
+            case VALUE_TYPE_I31REF:
+            case VALUE_TYPE_EQREF:
+            case VALUE_TYPE_ANYREF:
+            case VALUE_TYPE_HT_NULLABLE_REF:
+                local_value = GC_REF_NULL;
+                break;
+#endif
             default:
                 bh_assert(0);
                 break;
@@ -3123,6 +3145,12 @@ aot_value_stack_push(const AOTCompContext *comp_ctx, AOTValueStack *stack,
             case VALUE_TYPE_EXTERNREF:
                 push_ref(comp_ctx->aot_frame, value);
                 break;
+#if WASM_ENABLE_GC != 0
+            case VALUE_TYPE_GC_REF:
+                bh_assert(comp_ctx->enable_gc);
+                push_gc_ref(comp_ctx->aot_frame, value);
+                break;
+#endif
             default:
                 bh_assert(0);
                 break;
@@ -3171,6 +3199,12 @@ aot_value_stack_pop(const AOTCompContext *comp_ctx, AOTValueStack *stack)
             case VALUE_TYPE_EXTERNREF:
                 pop_ref(comp_ctx->aot_frame);
                 break;
+#if WASM_ENABLE_GC != 0
+            case VALUE_TYPE_GC_REF:
+                bh_assert(comp_ctx->enable_gc);
+                pop_gc_ref(comp_ctx->aot_frame);
+                break;
+#endif
             default:
                 bh_assert(0);
                 break;
