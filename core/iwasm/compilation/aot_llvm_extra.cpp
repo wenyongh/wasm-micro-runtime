@@ -146,6 +146,45 @@ ExpandMemoryOpPass::run(Function &F, FunctionAnalysisManager &AM)
     return PA;
 }
 
+class RemoveStoreGlobalPass : public PassInfoMixin<RemoveStoreGlobalPass>
+{
+  public:
+    PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+};
+
+PreservedAnalyses
+RemoveStoreGlobalPass::run(Function &F, FunctionAnalysisManager &AM)
+{
+    SmallVector<StoreInst *, 16> Stores;
+
+    for (auto &BB : F) {
+        for (auto &Inst : BB) {
+            if (auto *store = dyn_cast_or_null<StoreInst>(&Inst)) {
+                LLVMValueRef store_insn = (LLVMValueRef)store;
+                LLVMValueRef store_opnd = LLVMGetOperand(store_insn, 1);
+                const char *name;
+                size_t length;
+
+                bh_assert(store_opnd);
+                name = LLVMGetValueName2(store_opnd, &length);
+                if (name && strstr(name, "global_dce")) {
+                    Stores.push_back(store);
+                }
+            }
+        }
+    }
+
+    for (StoreInst *store : Stores) {
+        LLVMValueRef store_insn = (LLVMValueRef)store;
+        LLVMInstructionEraseFromParent(store_insn);
+    }
+
+    PreservedAnalyses PA;
+    PA.preserveSet<CFGAnalyses>();
+
+    return PA;
+}
+
 bool
 aot_check_simd_compatibility(const char *arch_c_str, const char *cpu_c_str)
 {
@@ -368,6 +407,12 @@ aot_apply_llvm_new_pass_manager(AOTCompContext *comp_ctx, LLVMModuleRef module)
         if (comp_ctx->is_indirect_mode) {
             FunctionPassManager FPM1;
             FPM1.addPass(ExpandMemoryOpPass());
+            MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM1)));
+        }
+
+        if (!comp_ctx->enable_bound_check) {
+            FunctionPassManager FPM1;
+            FPM1.addPass(RemoveStoreGlobalPass());
             MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM1)));
         }
     }

@@ -2888,6 +2888,19 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
     if (comp_ctx->disable_llvm_intrinsics)
         aot_intrinsic_fill_capability_flags(comp_ctx);
 
+    if (!comp_ctx->enable_bound_check) {
+        LLVMTypeRef global_dce_type = LLVMArrayType(INT8_TYPE, 128);
+        if (!global_dce_type) {
+            aot_set_last_error("failed to create global_dce type.");
+            goto fail;
+        }
+        if (!(comp_ctx->global_dce = LLVMAddGlobal(
+                  comp_ctx->module, global_dce_type, "global_dce"))) {
+            aot_set_last_error("failed to create global_dce.");
+            goto fail;
+        }
+    }
+
     ret = comp_ctx;
 
 fail:

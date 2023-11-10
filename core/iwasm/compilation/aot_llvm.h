@@ -422,6 +422,8 @@ typedef struct AOTCompContext {
     char stack_usage_temp_file[64];
     const char *llvm_passes;
     const char *builtin_intrinsics;
+
+    LLVMValueRef global_dce;
 } AOTCompContext;
 
 enum {
