@@ -156,6 +156,7 @@ PreservedAnalyses
 RemoveStoreGlobalPass::run(Function &F, FunctionAnalysisManager &AM)
 {
     SmallVector<StoreInst *, 16> Stores;
+    bool Changed = false;
 
     for (auto &BB : F) {
         for (auto &Inst : BB) {
@@ -171,13 +172,30 @@ RemoveStoreGlobalPass::run(Function &F, FunctionAnalysisManager &AM)
                     Stores.push_back(store);
                 }
             }
+            else if (auto *load = dyn_cast_or_null<LoadInst>(&Inst)) {
+                LLVMValueRef load_insn = (LLVMValueRef)load;
+                LLVMValueRef load_opnd = LLVMGetOperand(load_insn, 0);
+                const char *name;
+                size_t length;
+
+                bh_assert(load_opnd);
+                name = LLVMGetValueName2(load_opnd, &length);
+                if (name && strstr(name, "maddr")) {
+                    LLVMSetVolatile(load_insn, true);
+                    Changed = true;
+                }
+            }
         }
     }
 
     for (StoreInst *store : Stores) {
         LLVMValueRef store_insn = (LLVMValueRef)store;
         LLVMInstructionEraseFromParent(store_insn);
+        Changed = true;
     }
+
+    if (!Changed)
+        return PreservedAnalyses::all();
 
     PreservedAnalyses PA;
     PA.preserveSet<CFGAnalyses>();
@@ -418,6 +436,9 @@ aot_apply_llvm_new_pass_manager(AOTCompContext *comp_ctx, LLVMModuleRef module)
     }
 
     MPM.run(*M, MAM);
+
+    if (!comp_ctx->enable_bound_check)
+        LLVMDeleteGlobal(comp_ctx->global_dce);
 }
 
 char *

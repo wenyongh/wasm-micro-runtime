@@ -300,23 +300,25 @@ fail:
         }                                                                     \
         LLVMSetAlignment(value, 1);                                           \
         if (!comp_ctx->enable_bound_check) {                                  \
-            LLVMTypeRef data_ptr_type;                                        \
-            LLVMValueRef global_dce_casted;                                   \
-            if (!(data_ptr_type = LLVMPointerType(data_type, 0))) {           \
+            LLVMTypeRef value_type = LLVMTypeOf(value);                       \
+            LLVMTypeRef value_ptr_type;                                       \
+            LLVMValueRef global_dce_casted, res;                              \
+            if (!(value_ptr_type = LLVMPointerType(value_type, 0))) {         \
                 aot_set_last_error("create llvm pointer type failed.");       \
                 goto fail;                                                    \
             }                                                                 \
             if (!(global_dce_casted = LLVMBuildBitCast(                       \
-                      comp_ctx->builder, comp_ctx->global_dce, data_ptr_type, \
+                      comp_ctx->builder, comp_ctx->global_dce, value_ptr_type,\
                       "global_dce_casted"))) {                                \
                 aot_set_last_error("llvm build bit cast failed.");            \
                 goto fail;                                                    \
             }                                                                 \
-            if (!LLVMBuildStore(comp_ctx->builder, value,                     \
-                                global_dce_casted)) {                         \
+            if (!(res = LLVMBuildStore(comp_ctx->builder, value,              \
+                                       global_dce_casted))) {                 \
                 aot_set_last_error("llvm build store failed.");               \
                 goto fail;                                                    \
             }                                                                 \
+            LLVMSetVolatile(res, true);                                       \
         }                                                                     \
     } while (0)
 

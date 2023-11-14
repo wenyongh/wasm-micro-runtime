@@ -38,17 +38,27 @@ simd_load(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx, uint32 align,
     LLVMSetAlignment(data, 1);
 
     if (!comp_ctx->enable_bound_check) {
-        LLVMValueRef global_dce_casted;
+        LLVMValueRef global_dce_casted, res;
+        LLVMTypeRef value_type = LLVMTypeOf(data);
+        LLVMTypeRef value_ptr_type = LLVMPointerType(value_type, 0);
+
+        if (!value_ptr_type) {
+            aot_set_last_error("create llvm pointer type failed.");
+            return NULL;
+        }
+
         if (!(global_dce_casted =
                   LLVMBuildBitCast(comp_ctx->builder, comp_ctx->global_dce,
-                                   ptr_type, "global_dce_casted"))) {
+                                   value_ptr_type, "global_dce_casted"))) {
             aot_set_last_error("llvm build bit cast failed.");
             return NULL;
         }
-        if (!LLVMBuildStore(comp_ctx->builder, data, global_dce_casted)) {
+        if (!(res =
+                  LLVMBuildStore(comp_ctx->builder, data, global_dce_casted))) {
             aot_set_last_error("llvm build store failed.");
             return NULL;
         }
+        LLVMSetVolatile(res, true);
     }
 
     return data;
