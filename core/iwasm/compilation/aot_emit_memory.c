@@ -291,35 +291,35 @@ fail:
         }                                                                  \
     } while (0)
 
-#define BUILD_LOAD(data_type)                                                 \
-    do {                                                                      \
-        if (!(value = LLVMBuildLoad2(comp_ctx->builder, data_type, maddr,     \
-                                     "data"))) {                              \
-            aot_set_last_error("llvm build load failed.");                    \
-            goto fail;                                                        \
-        }                                                                     \
-        LLVMSetAlignment(value, 1);                                           \
-        if (!comp_ctx->enable_bound_check) {                                  \
-            LLVMTypeRef value_type = LLVMTypeOf(value);                       \
-            LLVMTypeRef value_ptr_type;                                       \
-            LLVMValueRef global_dce_casted, res;                              \
-            if (!(value_ptr_type = LLVMPointerType(value_type, 0))) {         \
-                aot_set_last_error("create llvm pointer type failed.");       \
-                goto fail;                                                    \
-            }                                                                 \
-            if (!(global_dce_casted = LLVMBuildBitCast(                       \
-                      comp_ctx->builder, comp_ctx->global_dce, value_ptr_type,\
-                      "global_dce_casted"))) {                                \
-                aot_set_last_error("llvm build bit cast failed.");            \
-                goto fail;                                                    \
-            }                                                                 \
-            if (!(res = LLVMBuildStore(comp_ctx->builder, value,              \
-                                       global_dce_casted))) {                 \
-                aot_set_last_error("llvm build store failed.");               \
-                goto fail;                                                    \
-            }                                                                 \
-            LLVMSetVolatile(res, true);                                       \
-        }                                                                     \
+#define BUILD_LOAD(data_type)                                                  \
+    do {                                                                       \
+        if (!(value = LLVMBuildLoad2(comp_ctx->builder, data_type, maddr,      \
+                                     "data"))) {                               \
+            aot_set_last_error("llvm build load failed.");                     \
+            goto fail;                                                         \
+        }                                                                      \
+        LLVMSetAlignment(value, 1);                                            \
+        if (!comp_ctx->enable_bound_check) {                                   \
+            LLVMTypeRef value_type = LLVMTypeOf(value);                        \
+            LLVMTypeRef value_ptr_type;                                        \
+            LLVMValueRef global_dce_casted, res;                               \
+            if (!(value_ptr_type = LLVMPointerType(value_type, 0))) {          \
+                aot_set_last_error("create llvm pointer type failed.");        \
+                goto fail;                                                     \
+            }                                                                  \
+            if (!(global_dce_casted = LLVMBuildBitCast(                        \
+                      comp_ctx->builder, comp_ctx->global_dce, value_ptr_type, \
+                      "global_dce_casted"))) {                                 \
+                aot_set_last_error("llvm build bit cast failed.");             \
+                goto fail;                                                     \
+            }                                                                  \
+            if (!(res = LLVMBuildStore(comp_ctx->builder, value,               \
+                                       global_dce_casted))) {                  \
+                aot_set_last_error("llvm build store failed.");                \
+                goto fail;                                                     \
+            }                                                                  \
+            LLVMSetVolatile(res, true);                                        \
+        }                                                                      \
     } while (0)
 
 #define BUILD_TRUNC(value, data_type)                                     \
