@@ -153,6 +153,13 @@ aot_target_precheck_can_use_musttail(const AOTCompContext *comp_ctx)
          */
         return false;
     }
+    if (strstr(comp_ctx->target_arch, "thumb")) {
+        /*
+         * cf.
+         * https://github.com/bytecodealliance/wasm-micro-runtime/issues/2412
+         */
+        return false;
+    }
     /*
      * x86-64/i386: true
      *
@@ -2572,6 +2579,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
             }
             else if (is_baremetal_target(arch, cpu, abi)) {
                 vendor_sys = "-unknown-none-";
+                if (!abi)
+                    abi = "gnu";
             }
             else {
                 vendor_sys = "-pc-linux-";
