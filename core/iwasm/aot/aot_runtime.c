@@ -2965,13 +2965,15 @@ aot_dump_perf_profiling(const AOTModuleInstance *module_inst)
         func_name = get_func_name_from_index(module_inst, i);
 
         if (func_name)
-            os_printf("  func %s, execution time: %.3f ms, execution count: %d "
-                      "times\n",
-                      func_name, perf_prof->total_exec_time / 1000.0f,
-                      perf_prof->total_exec_cnt);
+            os_printf(
+                "  func %s, execution time: %.3f ms, execution count: %" PRIu32
+                " times\n",
+                func_name, perf_prof->total_exec_time / 1000.0f,
+                perf_prof->total_exec_cnt);
         else
-            os_printf("  func %d, execution time: %.3f ms, execution count: %d "
-                      "times\n",
+            os_printf("  func %" PRIu32
+                      ", execution time: %.3f ms, execution count: %" PRIu32
+                      " times\n",
                       i, perf_prof->total_exec_time / 1000.0f,
                       perf_prof->total_exec_cnt);
     }
