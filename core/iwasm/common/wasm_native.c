@@ -1385,6 +1385,27 @@ invoke_IIII(void *func_ptr, uint8 ret_type, void *exec_env, uint32 *argv,
     }
 }
 
+static void
+invoke_iiiii(void *func_ptr, uint8 ret_type, void *exec_env, uint32 *argv,
+             uint32 *argv_ret)
+{
+    if (ret_type == VALUE_TYPE_VOID) {
+        void (*native_code)() = func_ptr;
+        native_code(exec_env, argv[0], argv[1], argv[2], argv[3], argv[4]);
+    }
+    else if (ret_type == VALUE_TYPE_I32) {
+        uint32 (*native_code)() = func_ptr;
+        argv_ret[0] =
+            native_code(exec_env, argv[0], argv[1], argv[2], argv[3], argv[4]);
+    }
+    else if (ret_type == VALUE_TYPE_I64) {
+        uint64 (*native_code)() = func_ptr;
+        uint64 ret =
+            native_code(exec_env, argv[0], argv[1], argv[2], argv[3], argv[4]);
+        PUT_I64_TO_ADDR(argv_ret, ret);
+    }
+}
+
 typedef struct InvokeQuick {
     const char *signature;
     void *func_ptr;
@@ -1393,21 +1414,23 @@ typedef struct InvokeQuick {
 static InvokeQuick invoke_quicks[] = {
     { "", invoke_no_args },
 
-    { "i", invoke_i },       { "I", invoke_I },
+    { "i", invoke_i },         { "I", invoke_I },
 
-    { "ii", invoke_ii },     { "iI", invoke_iI },     { "Ii", invoke_Ii },
+    { "ii", invoke_ii },       { "iI", invoke_iI },     { "Ii", invoke_Ii },
     { "II", invoke_II },
 
-    { "iii", invoke_iii },   { "iiI", invoke_iiI },   { "iIi", invoke_iIi },
-    { "iII", invoke_iII },   { "Iii", invoke_Iii },   { "IiI", invoke_IiI },
-    { "IIi", invoke_IIi },   { "III", invoke_III },
+    { "iii", invoke_iii },     { "iiI", invoke_iiI },   { "iIi", invoke_iIi },
+    { "iII", invoke_iII },     { "Iii", invoke_Iii },   { "IiI", invoke_IiI },
+    { "IIi", invoke_IIi },     { "III", invoke_III },
 
-    { "iiii", invoke_iiii }, { "iiiI", invoke_iiiI }, { "iiIi", invoke_iiIi },
-    { "iiII", invoke_iiII }, { "iIii", invoke_iIii }, { "iIiI", invoke_iIiI },
-    { "iIIi", invoke_iIIi }, { "iIII", invoke_iIII }, { "Iiii", invoke_Iiii },
-    { "IiiI", invoke_IiiI }, { "IiIi", invoke_IiIi }, { "IiII", invoke_IiII },
-    { "IIii", invoke_IIii }, { "IIiI", invoke_IIiI }, { "IIIi", invoke_IIIi },
+    { "iiii", invoke_iiii },   { "iiiI", invoke_iiiI }, { "iiIi", invoke_iiIi },
+    { "iiII", invoke_iiII },   { "iIii", invoke_iIii }, { "iIiI", invoke_iIiI },
+    { "iIIi", invoke_iIIi },   { "iIII", invoke_iIII }, { "Iiii", invoke_Iiii },
+    { "IiiI", invoke_IiiI },   { "IiIi", invoke_IiIi }, { "IiII", invoke_IiII },
+    { "IIii", invoke_IIii },   { "IIiI", invoke_IIiI }, { "IIIi", invoke_IIIi },
     { "IIII", invoke_IIII },
+
+    { "iiiii", invoke_iiiii },
 };
 
 void *
@@ -1418,7 +1441,7 @@ wasm_native_lookup_invoke_quick(const WASMFuncType *func_type)
     uint32 result_count = func_type->result_count, i;
     const uint8 *types = func_type->types;
 
-    if (param_count > 4 || result_count > 1
+    if (param_count > 5 || result_count > 1
         || (result_count == 1 && types[param_count] != VALUE_TYPE_I32
             && types[param_count] != VALUE_TYPE_I64))
         return NULL;

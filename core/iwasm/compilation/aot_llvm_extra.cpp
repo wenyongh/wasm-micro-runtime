@@ -316,15 +316,21 @@ aot_apply_llvm_new_pass_manager(AOTCompContext *comp_ctx, LLVMModuleRef module)
 
     ModulePassManager MPM;
 
-#if 0
     if (comp_ctx->is_jit_mode) {
+        FunctionPassManager FPM;
+
+        /* Apply Vectorize related passes for AOT mode */
+        FPM.addPass(LoopVectorizePass());
+        FPM.addPass(SLPVectorizerPass());
+        FPM.addPass(LoadStoreVectorizerPass());
+
+        MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+
         const char *Passes =
             "mem2reg,instcombine,simplifycfg,jump-threading,indvars";
         ExitOnErr(PB.parsePassPipeline(MPM, Passes));
     }
-    else
-#endif
-    {
+    else {
         FunctionPassManager FPM;
 
         /* Apply Vectorize related passes for AOT mode */
