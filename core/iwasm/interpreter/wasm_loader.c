@@ -1978,6 +1978,10 @@ load_type_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
             type->param_cell_num = (uint16)param_cell_num;
             type->ret_cell_num = (uint16)ret_cell_num;
 
+#if WASM_ENABLE_JIT != 0
+            type->invoke_native_quick = wasm_native_lookup_invoke_quick(type);
+#endif
+
             /* If there is already a same type created, use it instead */
             for (j = 0; j < i; j++) {
                 if (wasm_type_equal(type, module->types[j], module->types, i)) {
@@ -4809,6 +4813,10 @@ init_llvm_jit_functions_stage1(WASMModule *module, char *error_buf,
     bool gc_enabled = false;
 #endif
 
+    printf("##################################\n");
+    printf("## START WAMR JIT\n");
+    printf("##################################\n");
+
     if (module->function_count == 0)
         return true;
 
@@ -4845,9 +4853,15 @@ init_llvm_jit_functions_stage1(WASMModule *module, char *error_buf,
     option.is_jit_mode = true;
 
     llvm_jit_options = wasm_runtime_get_llvm_jit_options();
+#if 0
     option.opt_level = llvm_jit_options.opt_level;
     option.size_level = llvm_jit_options.size_level;
     option.segue_flags = llvm_jit_options.segue_flags;
+#else
+    option.opt_level = 3;
+    option.size_level = 3;
+    option.segue_flags = 0x1F1F;
+#endif
     option.linux_perf_support = llvm_jit_options.linux_perf_support;
 
 #if WASM_ENABLE_BULK_MEMORY != 0
@@ -4879,6 +4893,11 @@ init_llvm_jit_functions_stage1(WASMModule *module, char *error_buf,
     option.enable_memory_profiling = true;
     option.enable_stack_estimation = true;
 #endif
+
+    printf("## opt level: %u\n", option.opt_level);
+    printf("## size level: %u\n", option.size_level);
+    printf("## linux perf support: %d\n", option.linux_perf_support);
+    printf("## enable_aux_stack_check: %d\n", option.enable_aux_stack_frame);
 
     module->comp_ctx = aot_create_comp_context(module->comp_data, &option);
     if (!module->comp_ctx) {

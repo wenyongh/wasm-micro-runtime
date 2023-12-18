@@ -2603,7 +2603,11 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
 #if WASM_DISABLE_STACK_HW_BOUND_CHECK != 0
         /* Native stack overflow check with hardware trap is disabled,
            we need to enable the check by LLVM JITed/AOTed code */
-        comp_ctx->enable_stack_bound_check = true;
+        comp_ctx->enable_stack_bound_check = false;
+        if (comp_ctx->enable_stack_bound_check)
+            printf("## software stack bound check is enabled\n");
+        else
+            printf("## software stack bound check is disabled\n");
 #else
         /* Native stack overflow check with hardware trap is enabled,
            no need to enable the check by LLVM JITed/AOTed code */

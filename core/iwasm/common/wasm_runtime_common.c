@@ -2598,7 +2598,6 @@ wasm_runtime_clear_exception(WASMModuleInstanceCommon *module_inst_comm)
     wasm_runtime_set_exception(module_inst_comm, NULL);
 }
 
-#if WASM_ENABLE_THREAD_MGR != 0
 void
 wasm_runtime_terminate(WASMModuleInstanceCommon *module_inst_comm)
 {
@@ -2608,7 +2607,6 @@ wasm_runtime_terminate(WASMModuleInstanceCommon *module_inst_comm)
               || module_inst_comm->module_type == Wasm_Module_AoT);
     wasm_set_exception(module_inst, "terminated by user");
 }
-#endif
 
 void
 wasm_runtime_set_custom_data_internal(

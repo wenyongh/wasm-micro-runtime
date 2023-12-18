@@ -335,6 +335,10 @@ typedef struct WASMFuncType {
     void *call_to_llvm_jit_from_fast_jit;
 #endif
 
+#if WASM_ENABLE_JIT != 0 || WASM_ENABLE_AOT != 0
+    void *invoke_native_quick;
+#endif
+
 #if WASM_ENABLE_GC != 0
     uint16 ref_type_map_count;
     WASMRefTypeMap *ref_type_maps;
