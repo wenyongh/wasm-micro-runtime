@@ -161,7 +161,7 @@ static JitCompOptions jit_options = { 0 };
 #endif
 
 #if WASM_ENABLE_JIT != 0
-static LLVMJITOptions llvm_jit_options = { 3, 3, 0, false };
+static LLVMJITOptions llvm_jit_options = { 3, 3, 0, false, false };
 #endif
 
 #if WASM_ENABLE_GC != 0
@@ -689,6 +689,8 @@ wasm_runtime_full_init(RuntimeInitArgs *init_args)
     llvm_jit_options.opt_level = init_args->llvm_jit_opt_level;
     llvm_jit_options.segue_flags = init_args->segue_flags;
     llvm_jit_options.linux_perf_support = init_args->linux_perf_support;
+    llvm_jit_options.quick_invoke_c_api_import =
+        init_args->quick_invoke_c_api_import;
 #endif
 
     if (!wasm_runtime_env_init()) {
@@ -5963,13 +5965,9 @@ wasm_runtime_invoke_c_api_native(WASMModuleInstanceCommon *module_inst,
 
     params_vec.data = params;
     params_vec.num_elems = func_type->param_count;
-    params_vec.size = func_type->param_count;
-    params_vec.size_of_elem = sizeof(wasm_val_t);
 
     results_vec.data = results;
     results_vec.num_elems = 0;
-    results_vec.size = func_type->result_count;
-    results_vec.size_of_elem = sizeof(wasm_val_t);
 
     if (!with_env) {
         wasm_func_callback_t callback = (wasm_func_callback_t)func_ptr;
@@ -6005,7 +6003,6 @@ wasm_runtime_invoke_c_api_native(WASMModuleInstanceCommon *module_inst,
         wasm_runtime_set_exception(module_inst, "unsupported result type");
         goto fail;
     }
-    results_vec.num_elems = func_type->result_count;
     ret = true;
 
 fail:
@@ -6015,6 +6012,64 @@ fail:
         wasm_runtime_free(results);
     return ret;
 }
+
+#if WASM_ENABLE_JIT != 0
+bool
+llvm_jit_invoke_c_api_native(WASMModuleInstanceCommon *inst_comm,
+                             CApiFuncImport *c_api_import, wasm_val_t *params,
+                             uint32 param_count, wasm_val_t *results)
+{
+    WASMModuleInstance *module_inst = (WASMModuleInstance *)inst_comm;
+    void *func_ptr = c_api_import->func_ptr_linked;
+    bool with_env_arg = c_api_import->with_env_arg;
+    wasm_val_vec_t params_vec, results_vec;
+    wasm_trap_t *trap = NULL;
+
+    params_vec.data = params;
+    params_vec.num_elems = param_count;
+
+    results_vec.data = results;
+    results_vec.num_elems = 0;
+
+    if (!func_ptr) {
+        wasm_set_exception_with_id(module_inst, EXCE_CALL_UNLINKED_IMPORT_FUNC);
+        return false;
+    }
+
+    if (!with_env_arg) {
+        wasm_func_callback_t callback = (wasm_func_callback_t)func_ptr;
+        trap = callback(&params_vec, &results_vec);
+    }
+    else {
+        void *wasm_c_api_env = c_api_import->env_arg;
+        wasm_func_callback_with_env_t callback =
+            (wasm_func_callback_with_env_t)func_ptr;
+        trap = callback(wasm_c_api_env, &params_vec, &results_vec);
+    }
+
+    if (trap) {
+        if (trap->message->data) {
+            /* since trap->message->data does not end with '\0' */
+            char trap_message[108] = { 0 };
+            uint32 max_size_to_copy = (uint32)sizeof(trap_message) - 1;
+            uint32 size_to_copy = (trap->message->size < max_size_to_copy)
+                                      ? (uint32)trap->message->size
+                                      : max_size_to_copy;
+            bh_memcpy_s(trap_message, (uint32)sizeof(trap_message),
+                        trap->message->data, size_to_copy);
+            wasm_set_exception(module_inst, trap_message);
+        }
+        else {
+            wasm_set_exception(module_inst,
+                               "native function throw unknown exception");
+        }
+        wasm_trap_delete(trap);
+        return false;
+    }
+
+    return true;
+}
+#endif
 
 void
 wasm_runtime_show_app_heap_corrupted_prompt()

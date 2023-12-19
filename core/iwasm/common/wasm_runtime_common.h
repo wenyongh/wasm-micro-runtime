@@ -484,12 +484,13 @@ typedef struct wasm_frame_t {
     uint32 *lp;
 } WASMCApiFrame;
 
-#ifdef WASM_ENABLE_JIT
+#if WASM_ENABLE_JIT != 0
 typedef struct LLVMJITOptions {
     uint32 opt_level;
     uint32 size_level;
     uint32 segue_flags;
     bool linux_perf_support;
+    bool quick_invoke_c_api_import;
 } LLVMJITOptions;
 #endif
 
@@ -1151,6 +1152,18 @@ wasm_runtime_invoke_c_api_native(WASMModuleInstanceCommon *module_inst,
                                  void *func_ptr, WASMFuncType *func_type,
                                  uint32 argc, uint32 *argv, bool with_env,
                                  void *wasm_c_api_env);
+
+#if WASM_ENABLE_JIT != 0
+struct CApiFuncImport;
+
+/* A quick version of wasm_runtime_invoke_c_api_native to directly invoke
+   wasm-c-api import function from jitted code to improve performance */
+bool
+llvm_jit_invoke_c_api_native(WASMModuleInstanceCommon *module_inst,
+                             struct CApiFuncImport *c_api_import,
+                             wasm_val_t *params, uint32 param_count,
+                             wasm_val_t *results);
+#endif
 
 void
 wasm_runtime_show_app_heap_corrupted_prompt();

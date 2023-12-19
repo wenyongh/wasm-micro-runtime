@@ -2582,6 +2582,9 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
         comp_ctx->enable_aux_stack_frame = true;
     }
 
+    if (option->quick_invoke_c_api_import)
+        comp_ctx->quick_invoke_c_api_import = true;
+
     comp_ctx->opt_level = option->opt_level;
     comp_ctx->size_level = option->size_level;
 

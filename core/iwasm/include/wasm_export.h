@@ -181,6 +181,9 @@ typedef struct RuntimeInitArgs {
      * - interpreter. TBD
      */
     bool linux_perf_support;
+    /* Allow to directly invoke wasm-c-api import function
+       from jitted code */
+    bool quick_invoke_c_api_import;
 } RuntimeInitArgs;
 
 #ifndef WASM_VALKIND_T_DEFINED
