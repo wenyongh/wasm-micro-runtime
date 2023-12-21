@@ -6021,7 +6021,7 @@ llvm_jit_invoke_c_api_native(WASMModuleInstanceCommon *inst_comm,
 {
     WASMModuleInstance *module_inst = (WASMModuleInstance *)inst_comm;
     void *func_ptr = c_api_import->func_ptr_linked;
-    bool with_env_arg = c_api_import->with_env_arg;
+    bool with_env_arg = c_api_import->with_env_arg, ret = true;
     wasm_val_vec_t params_vec, results_vec;
     wasm_trap_t *trap = NULL;
 
@@ -6033,7 +6033,8 @@ llvm_jit_invoke_c_api_native(WASMModuleInstanceCommon *inst_comm,
 
     if (!func_ptr) {
         wasm_set_exception_with_id(module_inst, EXCE_CALL_UNLINKED_IMPORT_FUNC);
-        return false;
+        ret = false;
+        goto fail;
     }
 
     if (!with_env_arg) {
@@ -6064,10 +6065,15 @@ llvm_jit_invoke_c_api_native(WASMModuleInstanceCommon *inst_comm,
                                "native function throw unknown exception");
         }
         wasm_trap_delete(trap);
-        return false;
+        ret = false;
     }
 
-    return true;
+fail:
+#ifdef OS_ENABLE_HW_BOUND_CHECK
+    if (!ret)
+        wasm_runtime_access_exce_check_guard_page();
+#endif
+    return ret;
 }
 #endif
 

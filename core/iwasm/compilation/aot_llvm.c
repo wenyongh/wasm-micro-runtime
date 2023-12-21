@@ -2613,6 +2613,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
         comp_ctx->enable_stack_bound_check = false;
 #endif
 #endif
+        /* Disable temporarily */
+        comp_ctx->enable_stack_bound_check = false;
 
         /* Create TargetMachine */
         if (!create_target_machine_detect_host(comp_ctx))

@@ -436,7 +436,9 @@ call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
         goto fail;
     }
 
-    if (!check_call_return(comp_ctx, func_ctx, res)) {
+    /* Check whether exception was thrown when executing the function */
+    if (comp_ctx->enable_bound_check
+        && !check_call_return(comp_ctx, func_ctx, res)) {
         goto fail;
     }
 
