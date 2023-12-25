@@ -4892,6 +4892,7 @@ init_llvm_jit_functions_stage1(WASMModule *module, char *error_buf,
 
     printf("## opt level: %u\n", option.opt_level);
     printf("## size level: %u\n", option.size_level);
+    printf("## segue flags: %u\n", option.segue_flags);
     printf("## linux perf support: %d\n", option.linux_perf_support);
     printf("## enable_aux_stack_check: %d\n", option.enable_aux_stack_frame);
 

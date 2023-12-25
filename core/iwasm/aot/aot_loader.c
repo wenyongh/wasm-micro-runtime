@@ -1677,6 +1677,9 @@ load_types(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
             func_type->param_cell_num = param_cell_num;
             func_type->ret_cell_num = ret_cell_num;
 
+            func_type->invoke_native_quick =
+                wasm_native_lookup_invoke_quick(func_type);
+
             LOG_VERBOSE("type %u: func, param count: %d, result count: %d, "
                         "ref type map count: %d",
                         i, param_count, result_count, ref_type_map_count);
@@ -1974,6 +1977,9 @@ load_types(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
 
         func_types[i]->param_cell_num = (uint16)param_cell_num;
         func_types[i]->ret_cell_num = (uint16)ret_cell_num;
+
+        func_types[i]->invoke_native_quick =
+            wasm_native_lookup_invoke_quick(func_types[i]);
     }
 
     *p_buf = buf;
