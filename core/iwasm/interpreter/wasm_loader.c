@@ -4813,9 +4813,11 @@ init_llvm_jit_functions_stage1(WASMModule *module, char *error_buf,
     bool gc_enabled = false;
 #endif
 
+#if 0
     printf("##################################\n");
     printf("## START WAMR JIT\n");
     printf("##################################\n");
+#endif
 
     if (module->function_count == 0)
         return true;
@@ -4890,11 +4892,13 @@ init_llvm_jit_functions_stage1(WASMModule *module, char *error_buf,
     option.enable_stack_estimation = true;
 #endif
 
+#if 0
     printf("## opt level: %u\n", option.opt_level);
     printf("## size level: %u\n", option.size_level);
     printf("## segue flags: %u\n", option.segue_flags);
     printf("## linux perf support: %d\n", option.linux_perf_support);
     printf("## enable_aux_stack_check: %d\n", option.enable_aux_stack_frame);
+#endif
 
     module->comp_ctx = aot_create_comp_context(module->comp_data, &option);
     if (!module->comp_ctx) {
@@ -6119,7 +6123,8 @@ wasm_loader_load(uint8 *buf, uint32 size,
         return NULL;
     }
 
-#if WASM_ENABLE_DEBUG_INTERP != 0 || WASM_ENABLE_FAST_JIT != 0
+#if WASM_ENABLE_DEBUG_INTERP != 0 || WASM_ENABLE_FAST_JIT != 0 \
+    || WASM_ENABLE_DUMP_CALL_STACK != 0
     module->load_addr = (uint8 *)buf;
     module->load_size = size;
 #endif

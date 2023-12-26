@@ -21,17 +21,11 @@ aot_emit_exception(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
 
     CHECK_LLVM_CONST(exce_id);
 
-#if 0
-    /* Seems no need to commit values since when dumping call stacks
-       after exception was thrown, we only need to know the ip (instruction
-       pointer) info. */
-    if (comp_ctx->aot_frame) {
-        if (!aot_gen_commit_values(comp_ctx->aot_frame))
-            goto fail;
+    if (comp_ctx->enable_aux_stack_frame) {
+        /* Commit ip and don't commit sp */
+        if (!aot_gen_commit_sp_ip(comp_ctx->aot_frame, false, true))
+            return false;
     }
-#endif
-    /* TODO: commit ip if needed when dumping call stacks after exception
-       was thrown */
 
     /* Create got_exception block if needed */
     if (!func_ctx->got_exception_block) {

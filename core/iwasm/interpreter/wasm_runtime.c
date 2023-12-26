@@ -2635,8 +2635,14 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
     if (stack_size == 0)
         stack_size = DEFAULT_WASM_STACK_SIZE;
 #if WASM_ENABLE_SPEC_TEST != 0
+#if WASM_ENABLE_TAIL_CALL == 0
     if (stack_size < 128 * 1024)
         stack_size = 128 * 1024;
+#else
+    /* Some tail-call cases require large operand stack */
+    if (stack_size < 10 * 1024 * 1024)
+        stack_size = 10 * 1024 * 1024;
+#endif
 #endif
     module_inst->default_wasm_stack_size = stack_size;
 
@@ -3592,7 +3598,7 @@ wasm_interp_create_call_stack(struct WASMExecEnv *exec_env)
             frame.func_offset = 0;
         }
         else {
-            frame.func_offset = (uint32)(cur_frame->ip - func_code_base);
+            frame.func_offset = (uint32)(cur_frame->ip - module->load_addr);
         }
 
         /* look for the function name */
@@ -3654,13 +3660,13 @@ wasm_interp_create_call_stack(struct WASMExecEnv *exec_env)
             }
             bh_memcpy_s(frame.lp, lp_size, cur_frame->lp, lp_size);
 
+#if WASM_ENABLE_GC != 0
 #if WASM_ENABLE_FAST_INTERP == 0
             frame.sp = frame.lp + (cur_frame->sp - cur_frame->lp);
 #else
             /* for fast-interp, let frame sp point to the end of the frame */
             frame.sp = frame.lp + all_cell_num;
 #endif
-#if WASM_ENABLE_GC != 0
             frame.frame_ref = (uint8 *)frame.lp
                               + (wasm_interp_get_frame_ref(cur_frame)
                                  - (uint8 *)cur_frame->lp);
@@ -3726,14 +3732,14 @@ wasm_interp_dump_call_stack(struct WASMExecEnv *exec_env, bool print, char *buf,
 
         /* function name not exported, print number instead */
         if (frame.func_name_wp == NULL) {
-            line_length =
-                snprintf(line_buf, sizeof(line_buf),
-                         "#%02" PRIu32 " $f%" PRIu32 "\n", n, frame.func_index);
+            line_length = snprintf(line_buf, sizeof(line_buf),
+                                   "#%02" PRIu32 " $f%" PRIu32 " (0x%04x)\n", n,
+                                   frame.func_index, frame.func_offset);
         }
         else {
-            line_length =
-                snprintf(line_buf, sizeof(line_buf), "#%02" PRIu32 " %s\n", n,
-                         frame.func_name_wp);
+            line_length = snprintf(line_buf, sizeof(line_buf),
+                                   "#%02" PRIu32 " %s (0x%04x)\n", n,
+                                   frame.func_name_wp, frame.func_offset);
         }
 
         if (line_length >= sizeof(line_buf)) {
@@ -4157,13 +4163,14 @@ llvm_jit_alloc_frame(WASMExecEnv *exec_env, uint32 func_index)
 
     frame->function = module_inst->e->functions + func_index;
     frame->ip = NULL;
-    frame->sp = frame->lp + max_local_cell_num;
 #if WASM_ENABLE_PERF_PROFILING != 0
     frame->time_started = os_time_get_boot_microsecond();
 #endif
     frame->prev_frame = wasm_exec_env_get_cur_frame(exec_env);
 
 #if WASM_ENABLE_GC != 0
+    frame->sp = frame->lp + max_local_cell_num;
+
     /* Initialize frame ref flags for import function */
     if (func_index < module->import_function_count) {
         WASMFunctionImport *func =

@@ -1684,8 +1684,14 @@ aot_instantiate(AOTModule *module, AOTModuleInstance *parent,
     if (stack_size == 0)
         stack_size = DEFAULT_WASM_STACK_SIZE;
 #if WASM_ENABLE_SPEC_TEST != 0
+#if WASM_ENABLE_TAIL_CALL == 0
     if (stack_size < 128 * 1024)
         stack_size = 128 * 1024;
+#else
+    /* Some tail-call cases require large operand stack */
+    if (stack_size < 10 * 1024 * 1024)
+        stack_size = 10 * 1024 * 1024;
+#endif
 #endif
     module_inst->default_wasm_stack_size = stack_size;
 
@@ -3498,9 +3504,9 @@ aot_alloc_frame(WASMExecEnv *exec_env, uint32 func_index)
     frame->time_started = (uintptr_t)os_time_get_boot_microsecond();
     frame->func_perf_prof_info = func_perf_prof;
 #endif
-    frame->sp = frame->lp + max_local_cell_num;
 
 #if WASM_ENABLE_GC != 0
+    frame->sp = frame->lp + max_local_cell_num;
     frame->frame_ref = (uint8 *)(frame->sp + max_stack_cell_num);
 
     /* Initialize frame ref flags for import function */
@@ -3646,9 +3652,8 @@ aot_create_call_stack(struct WASMExecEnv *exec_env)
             }
             bh_memcpy_s(frame.lp, lp_size, cur_frame->lp, lp_size);
 
-            /* Only save frame sp when fast-interpr isn't enabled */
-            frame.sp = frame.lp + (cur_frame->sp - cur_frame->lp);
 #if WASM_ENABLE_GC != 0
+            frame.sp = frame.lp + (cur_frame->sp - cur_frame->lp);
             frame.frame_ref = (uint8 *)frame.lp
                               + (cur_frame->frame_ref - (uint8 *)cur_frame->lp);
 #endif
@@ -3710,14 +3715,14 @@ aot_dump_call_stack(WASMExecEnv *exec_env, bool print, char *buf, uint32 len)
 
         /* function name not exported, print number instead */
         if (frame.func_name_wp == NULL) {
-            line_length =
-                snprintf(line_buf, sizeof(line_buf),
-                         "#%02" PRIu32 " $f%" PRIu32 "\n", n, frame.func_index);
+            line_length = snprintf(line_buf, sizeof(line_buf),
+                                   "#%02" PRIu32 " $f%" PRIu32 " (0x%04x)\n", n,
+                                   frame.func_index, frame.func_offset);
         }
         else {
-            line_length =
-                snprintf(line_buf, sizeof(line_buf), "#%02" PRIu32 " %s\n", n,
-                         frame.func_name_wp);
+            line_length = snprintf(line_buf, sizeof(line_buf),
+                                   "#%02" PRIu32 " %s (0x%04x)\n", n,
+                                   frame.func_name_wp, frame.func_offset);
         }
 
         if (line_length >= sizeof(line_buf)) {

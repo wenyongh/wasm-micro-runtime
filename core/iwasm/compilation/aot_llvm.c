@@ -2577,10 +2577,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
     if (option->builtin_intrinsics)
         comp_ctx->builtin_intrinsics = option->builtin_intrinsics;
 
-    if (option->enable_gc) {
+    if (option->enable_gc)
         comp_ctx->enable_gc = true;
-        comp_ctx->enable_aux_stack_frame = true;
-    }
 
     if (option->quick_invoke_c_api_import)
         comp_ctx->quick_invoke_c_api_import = true;
@@ -2613,8 +2611,6 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
         comp_ctx->enable_stack_bound_check = false;
 #endif
 #endif
-        /* Disable temporarily */
-        comp_ctx->enable_stack_bound_check = false;
 
         /* Create TargetMachine */
         if (!create_target_machine_detect_host(comp_ctx))

@@ -3184,7 +3184,7 @@ wasm_loader_load(uint8 *buf, uint32 size, char *error_buf,
         return NULL;
     }
 
-#if WASM_ENABLE_FAST_JIT != 0
+#if WASM_ENABLE_FAST_JIT != 0 || WASM_ENABLE_DUMP_CALL_STACK != 0
     module->load_addr = (uint8 *)buf;
     module->load_size = size;
 #endif

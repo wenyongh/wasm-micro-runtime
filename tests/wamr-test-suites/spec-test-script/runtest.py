@@ -888,6 +888,7 @@ def test_assert_return(r, opts, form):
             except:
                 _, exc, _ = sys.exc_info()
                 log("Run wamrc failed:\n  got: '%s'" % r.buf)
+                ret_code = 1
                 sys.exit(1)
         r = run_wasm_with_repl(module+".wasm", module+".aot" if test_aot else module, opts, r)
         # Wait for the initial prompt
@@ -953,6 +954,7 @@ def test_assert_trap(r, opts, form):
             except:
                 _, exc, _ = sys.exc_info()
                 log("Run wamrc failed:\n  got: '%s'" % r.buf)
+                ret_code = 1
                 sys.exit(1)
         r = run_wasm_with_repl(module+".wasm", module+".aot" if test_aot else module, opts, r)
         # Wait for the initial prompt
@@ -1043,7 +1045,7 @@ def compile_wast_to_wasm(form, wast_tempfile, wasm_tempfile, opts):
     return True
 
 def compile_wasm_to_aot(wasm_tempfile, aot_tempfile, runner, opts, r, output = 'default'):
-    log("Compiling AOT to '%s'" % aot_tempfile)
+    log("Compiling '%s' to '%s'" % (wasm_tempfile, aot_tempfile))
     cmd = [opts.aot_compiler]
 
     if test_target in aot_target_options_map:
@@ -1064,6 +1066,7 @@ def compile_wasm_to_aot(wasm_tempfile, aot_tempfile, runner, opts, r, output = '
 
     if opts.gc:
         cmd.append("--enable-gc")
+        cmd.append("--enable-tail-call")
 
     if output == 'object':
         cmd.append("--format=object")
@@ -1178,6 +1181,7 @@ def test_assert_with_exception(form, wast_tempfile, wasm_tempfile, aot_tempfile,
             else:
                 log("Run wamrc failed:\n  expected: '%s'\n  got: '%s'" % \
                     (expected, r.buf))
+                ret_code = 1
                 sys.exit(1)
 
     r = run_wasm_with_repl(wasm_tempfile, aot_tempfile if test_aot else None, opts, r)
@@ -1324,6 +1328,7 @@ if __name__ == "__main__":
                             except:
                                 _, exc, _ = sys.exc_info()
                                 log("Run wamrc failed:\n  got: '%s'" % r.buf)
+                                ret_code = 1
                                 sys.exit(1)
                         temp_module_table[module_name] = temp_files[1]
                         r = run_wasm_with_repl(temp_files[1], temp_files[2] if test_aot else None, opts, r)
@@ -1338,6 +1343,7 @@ if __name__ == "__main__":
                         except:
                             _, exc, _ = sys.exc_info()
                             log("Run wamrc failed:\n  got: '%s'" % r.buf)
+                            ret_code = 1
                             sys.exit(1)
 
                     r = run_wasm_with_repl(wasm_tempfile, aot_tempfile if test_aot else None, opts, r)
@@ -1421,4 +1427,3 @@ if __name__ == "__main__":
             log("Leaving tempfiles: %s" % ([wast_tempfile, wasm_tempfile]))
 
         sys.exit(ret_code)
-        
