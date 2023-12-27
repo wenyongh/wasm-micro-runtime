@@ -1394,9 +1394,10 @@ aot_compile_op_call(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         if (comp_ctx->enable_gc && !aot_gen_commit_values(comp_ctx->aot_frame))
             return false;
 
-        /* Commit sp if gc is enabled and always commit ip for func call */
+        /* Commit sp if gc is enabled and don't commit ip since below
+           alloc_frame_for_aot_func will commit it */
         if (!aot_gen_commit_sp_ip(comp_ctx->aot_frame, comp_ctx->enable_gc,
-                                  true))
+                                  false))
             return false;
     }
 
@@ -2000,7 +2001,7 @@ aot_compile_op_call_indirect(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         if (comp_ctx->enable_gc && !aot_gen_commit_values(comp_ctx->aot_frame))
             return false;
 
-        /* Commit sp if gc is enabled and always commit ip for func call */
+        /* Commit sp if gc is enabled and always commit ip for call_indirect */
         if (!aot_gen_commit_sp_ip(comp_ctx->aot_frame, comp_ctx->enable_gc,
                                   true))
             return false;
@@ -2673,7 +2674,7 @@ aot_compile_op_call_ref(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         if (!aot_gen_commit_values(comp_ctx->aot_frame))
             return false;
 
-        /* Commit sp if gc is enabled and always commit ip for func call */
+        /* Commit sp if gc is enabled and always commit ip for call_ref */
         if (!aot_gen_commit_sp_ip(comp_ctx->aot_frame, true, true))
             return false;
     }
