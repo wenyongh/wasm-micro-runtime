@@ -562,10 +562,9 @@ alloc_frame_for_aot_func(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     LLVMValueRef wasm_stack_top_bound = func_ctx->wasm_stack_top_bound;
     LLVMValueRef wasm_stack_top_ptr = func_ctx->wasm_stack_top_ptr,
                  wasm_stack_top;
-    LLVMValueRef wasm_stack_top_max, wasm_stack_top_new, offset, cmp;
+    LLVMValueRef wasm_stack_top_max, offset, cmp;
     LLVMValueRef cur_frame, new_frame, prev_frame_ptr;
     LLVMValueRef cur_frame_ptr = func_ctx->cur_frame_ptr;
-    LLVMValueRef frame_sp, frame_sp_ptr;
     LLVMValueRef func_idx_ptr, func_idx_val, func_inst_ptr, func_inst;
     LLVMTypeRef int8_ptr_type;
     LLVMBasicBlockRef check_wasm_stack_succ;
@@ -577,6 +576,13 @@ alloc_frame_for_aot_func(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     AOTImportFunc *import_funcs = comp_ctx->comp_data->import_funcs;
     AOTFuncType *aot_func_type;
     AOTFunc *aot_func = NULL;
+
+    /* `int8 **` type */
+    int8_ptr_type = LLVMPointerType(INT8_PTR_TYPE, 0);
+    if (!int8_ptr_type) {
+        aot_set_last_error("create llvm pointer type failed");
+        return false;
+    }
 
     /* Get param_cell_num, local_cell_num and max_stack_cell_num */
     if (func_idx < import_func_count) {
@@ -602,54 +608,74 @@ alloc_frame_for_aot_func(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     if (!comp_ctx->is_jit_mode) {
         /* Refer to aot_alloc_frame */
         if (!comp_ctx->enable_gc) {
-            frame_size =
-                comp_ctx->pointer_size * aot_frame_ptr_num + all_cell_num * 4;
+            frame_size = frame_size_with_outs_area =
+                comp_ctx->pointer_size * aot_frame_ptr_num;
         }
-        else
+        else {
             frame_size = comp_ctx->pointer_size * aot_frame_ptr_num
                          + align_uint(all_cell_num * 5, 4);
-        frame_size_with_outs_area = frame_size
-                                    + comp_ctx->pointer_size * aot_frame_ptr_num
-                                    + max_stack_cell_num * 4;
+            frame_size_with_outs_area =
+                frame_size + comp_ctx->pointer_size * aot_frame_ptr_num
+                + max_stack_cell_num * 4;
+        }
     }
     else {
         /* Refer to wasm_interp_interp_frame_size */
-        if (!comp_ctx->enable_gc)
-            frame_size = offsetof(WASMInterpFrame, lp) + all_cell_num * 4;
-        else
+        if (!comp_ctx->enable_gc) {
+            frame_size = frame_size_with_outs_area =
+                offsetof(WASMInterpFrame, lp);
+        }
+        else {
             frame_size =
                 offsetof(WASMInterpFrame, lp) + align_uint(all_cell_num * 5, 4);
-        frame_size_with_outs_area =
-            frame_size + offsetof(WASMInterpFrame, lp) + max_stack_cell_num * 4;
-    }
-
-    /* `int8 **` type */
-    int8_ptr_type = LLVMPointerType(INT8_PTR_TYPE, 0);
-    if (!int8_ptr_type) {
-        aot_set_last_error("create llvm pointer type failed");
-        return false;
-    }
-
-    /* Get exec_env->wasm_stack.top */
-    if (!(wasm_stack_top =
-              LLVMBuildLoad2(comp_ctx->builder, INT8_PTR_TYPE,
-                             wasm_stack_top_ptr, "wasm_stack_top"))) {
-        aot_set_last_error("load wasm_stack.top failed");
-        return false;
+            frame_size_with_outs_area = frame_size
+                                        + offsetof(WASMInterpFrame, lp)
+                                        + max_stack_cell_num * 4;
+        }
     }
 
     cur_frame = func_ctx->cur_frame;
-    new_frame = wasm_stack_top;
 
-    /* Check whether wasm operand stack is overflow */
-    offset = I32_CONST(frame_size_with_outs_area);
-    CHECK_LLVM_CONST(offset);
-    if (!(wasm_stack_top_max = LLVMBuildInBoundsGEP2(
-              comp_ctx->builder, INT8_TYPE, wasm_stack_top, &offset, 1,
-              "wasm_stack_top_max"))) {
-        aot_set_last_error("llvm build in bounds gep failed");
-        return false;
+    if (!comp_ctx->enable_gc) {
+        offset = I32_CONST(frame_size);
+        CHECK_LLVM_CONST(offset);
+        if (!(wasm_stack_top =
+                  LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE, cur_frame,
+                                        &offset, 1, "wasm_stack_top"))) {
+            aot_set_last_error("llvm build in bounds gep failed");
+            return false;
+        }
+
+        offset = I32_CONST(frame_size * 2);
+        CHECK_LLVM_CONST(offset);
+        if (!(wasm_stack_top_max =
+                  LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE, cur_frame,
+                                        &offset, 1, "wasm_stack_top_max"))) {
+            aot_set_last_error("llvm build in bounds gep failed");
+            return false;
+        }
     }
+    else {
+        /* Get exec_env->wasm_stack.top */
+        if (!(wasm_stack_top =
+                  LLVMBuildLoad2(comp_ctx->builder, INT8_PTR_TYPE,
+                                 wasm_stack_top_ptr, "wasm_stack_top"))) {
+            aot_set_last_error("load wasm_stack.top failed");
+            return false;
+        }
+
+        /* Check whether wasm operand stack is overflow */
+        offset = I32_CONST(frame_size_with_outs_area);
+        CHECK_LLVM_CONST(offset);
+        if (!(wasm_stack_top_max = LLVMBuildInBoundsGEP2(
+                  comp_ctx->builder, INT8_TYPE, wasm_stack_top, &offset, 1,
+                  "wasm_stack_top_max"))) {
+            aot_set_last_error("llvm build in bounds gep failed");
+            return false;
+        }
+    }
+
+    new_frame = wasm_stack_top;
 
     if (!(check_wasm_stack_succ = LLVMAppendBasicBlockInContext(
               comp_ctx->context, func_ctx->func, "check_wasm_stack_succ"))) {
@@ -671,64 +697,66 @@ alloc_frame_for_aot_func(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         return false;
     }
 
-    /* exec_env->wasm_stack.top += frame_size */
-    offset = I32_CONST(frame_size);
-    CHECK_LLVM_CONST(offset);
-    if (!(wasm_stack_top_new = LLVMBuildInBoundsGEP2(
-              comp_ctx->builder, INT8_TYPE, wasm_stack_top, &offset, 1,
-              "wasm_stack_top_new"))) {
-        aot_set_last_error("llvm build in bounds gep failed");
-        return false;
-    }
-    if (!LLVMBuildStore(comp_ctx->builder, wasm_stack_top_new,
-                        wasm_stack_top_ptr)) {
-        aot_set_last_error("llvm build store failed");
-        return false;
-    }
+#if WASM_ENABLE_GC != 0
+    if (comp_ctx->enable_gc) {
+        LLVMValueRef wasm_stack_top_new, frame_ref, frame_ref_ptr;
+        uint32 j, k;
 
-    if (func_idx < import_func_count) {
-        /* Only need to initialize new_frame->sp when it's import function
-           otherwise they will be committed in AOT code if needed */
-
-        /* new_frame->sp = new_frame->lp + max_local_cell_num */
-        if (!comp_ctx->is_jit_mode)
-            offset = I32_CONST(comp_ctx->pointer_size * 5);
-        else
-            offset = I32_CONST(offsetof(WASMInterpFrame, sp));
+        /* exec_env->wasm_stack.top += frame_size */
+        offset = I32_CONST(frame_size);
         CHECK_LLVM_CONST(offset);
-        if (!(frame_sp_ptr =
-                  LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE, new_frame,
-                                        &offset, 1, "frame_sp_addr"))
-            || !(frame_sp_ptr =
-                     LLVMBuildBitCast(comp_ctx->builder, frame_sp_ptr,
-                                      int8_ptr_type, "frame_sp_ptr"))) {
-            aot_set_last_error("llvm get frame_sp_ptr failed");
-            return false;
-        }
-
-        if (!comp_ctx->is_jit_mode)
-            offset = I32_CONST(comp_ctx->pointer_size * aot_frame_ptr_num
-                               + max_local_cell_num * sizeof(uint32));
-        else
-            offset = I32_CONST(offsetof(WASMInterpFrame, lp)
-                               + max_local_cell_num * sizeof(uint32));
-        CHECK_LLVM_CONST(offset);
-        if (!(frame_sp =
-                  LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE, new_frame,
-                                        &offset, 1, "frame_sp"))) {
+        if (!(wasm_stack_top_new = LLVMBuildInBoundsGEP2(
+                  comp_ctx->builder, INT8_TYPE, wasm_stack_top, &offset, 1,
+                  "wasm_stack_top_new"))) {
             aot_set_last_error("llvm build in bounds gep failed");
             return false;
         }
-        if (!LLVMBuildStore(comp_ctx->builder, frame_sp, frame_sp_ptr)) {
+        if (!LLVMBuildStore(comp_ctx->builder, wasm_stack_top_new,
+                            wasm_stack_top_ptr)) {
             aot_set_last_error("llvm build store failed");
             return false;
         }
-    }
 
-#if WASM_ENABLE_GC != 0
-    if (comp_ctx->enable_gc) {
-        LLVMValueRef frame_ref, frame_ref_ptr;
-        uint32 j, k;
+        if (func_idx < import_func_count) {
+            LLVMValueRef frame_sp, frame_sp_ptr;
+
+            /* Only need to initialize new_frame->sp when it's import function
+               otherwise they will be committed in AOT code if needed */
+
+            /* new_frame->sp = new_frame->lp + max_local_cell_num */
+            if (!comp_ctx->is_jit_mode)
+                offset = I32_CONST(comp_ctx->pointer_size * 5);
+            else
+                offset = I32_CONST(offsetof(WASMInterpFrame, sp));
+            CHECK_LLVM_CONST(offset);
+            if (!(frame_sp_ptr = LLVMBuildInBoundsGEP2(
+                      comp_ctx->builder, INT8_TYPE, new_frame, &offset, 1,
+                      "frame_sp_addr"))
+                || !(frame_sp_ptr =
+                         LLVMBuildBitCast(comp_ctx->builder, frame_sp_ptr,
+                                          int8_ptr_type, "frame_sp_ptr"))) {
+                aot_set_last_error("llvm get frame_sp_ptr failed");
+                return false;
+            }
+
+            if (!comp_ctx->is_jit_mode)
+                offset = I32_CONST(comp_ctx->pointer_size * aot_frame_ptr_num
+                                   + max_local_cell_num * sizeof(uint32));
+            else
+                offset = I32_CONST(offsetof(WASMInterpFrame, lp)
+                                   + max_local_cell_num * sizeof(uint32));
+            CHECK_LLVM_CONST(offset);
+            if (!(frame_sp = LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE,
+                                                   new_frame, &offset, 1,
+                                                   "frame_sp"))) {
+                aot_set_last_error("llvm build in bounds gep failed");
+                return false;
+            }
+            if (!LLVMBuildStore(comp_ctx->builder, frame_sp, frame_sp_ptr)) {
+                aot_set_last_error("llvm build store failed");
+                return false;
+            }
+        }
 
         if (!comp_ctx->is_jit_mode) {
             /* new_frame->frame_ref = new_frame->lp + max_local_cell_num
@@ -923,7 +951,7 @@ alloc_frame_for_aot_func(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     }
 
     /* No need to initialize new_frame->sp and new_frame->ip_offset
-       since they will be committed in AOT code if needed */
+       since they will be committed in AOT/JIT code if needed */
 
     /* exec_env->cur_frame = new_frame */
     if (!LLVMBuildStore(comp_ctx->builder, new_frame, cur_frame_ptr)) {
@@ -1087,17 +1115,19 @@ free_frame_for_aot_func(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx)
         }
     }
 
-    /* cur_frame = exec_env->cur_frame */
-    if (!(cur_frame = LLVMBuildLoad2(comp_ctx->builder, INT8_PTR_TYPE,
-                                     cur_frame_ptr, "cur_frame"))) {
-        aot_set_last_error("llvm build load failed");
-        return false;
-    }
+    if (comp_ctx->enable_gc) {
+        /* cur_frame = exec_env->cur_frame */
+        if (!(cur_frame = LLVMBuildLoad2(comp_ctx->builder, INT8_PTR_TYPE,
+                                         cur_frame_ptr, "cur_frame"))) {
+            aot_set_last_error("llvm build load failed");
+            return false;
+        }
 
-    /* exec_env->wasm_stack.top = cur_frame */
-    if (!LLVMBuildStore(comp_ctx->builder, cur_frame, wasm_stack_top_ptr)) {
-        aot_set_last_error("llvm build store failed");
-        return false;
+        /* exec_env->wasm_stack.top = cur_frame */
+        if (!LLVMBuildStore(comp_ctx->builder, cur_frame, wasm_stack_top_ptr)) {
+            aot_set_last_error("llvm build store failed");
+            return false;
+        }
     }
 
     /* exec_env->cur_frame = prev_frame */
@@ -1394,10 +1424,9 @@ aot_compile_op_call(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         if (comp_ctx->enable_gc && !aot_gen_commit_values(comp_ctx->aot_frame))
             return false;
 
-        /* Commit sp if gc is enabled and don't commit ip since below
-           alloc_frame_for_aot_func will commit it */
+        /* Commit sp if gc is enabled and commit ip for func call */
         if (!aot_gen_commit_sp_ip(comp_ctx->aot_frame, comp_ctx->enable_gc,
-                                  false))
+                                  true))
             return false;
     }
 

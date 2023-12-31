@@ -1091,6 +1091,10 @@ wasm_value_type_size_internal(uint8 value_type, uint8 pointer_size)
 #endif
     )
         return pointer_size;
+    else if (value_type == PACKED_TYPE_I8)
+        return sizeof(int8);
+    else if (value_type == PACKED_TYPE_I16)
+        return sizeof(int16);
 #endif
     else {
         bh_assert(0);

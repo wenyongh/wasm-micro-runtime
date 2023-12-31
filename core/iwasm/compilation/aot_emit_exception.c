@@ -21,12 +21,6 @@ aot_emit_exception(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
 
     CHECK_LLVM_CONST(exce_id);
 
-    if (comp_ctx->enable_aux_stack_frame) {
-        /* Commit ip and don't commit sp */
-        if (!aot_gen_commit_sp_ip(comp_ctx->aot_frame, false, true))
-            return false;
-    }
-
     /* Create got_exception block if needed */
     if (!func_ctx->got_exception_block) {
         if (!(func_ctx->got_exception_block = LLVMAppendBasicBlockInContext(

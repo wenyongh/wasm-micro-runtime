@@ -578,11 +578,9 @@ aot_gen_commit_sp_ip(AOTCompFrame *frame, bool commit_sp, bool commit_ip)
         if (!comp_ctx->is_jit_mode) {
             WASMModule *module = comp_ctx->comp_data->wasm_module;
             if (is_64bit)
-                value = I64_CONST(
-                    (uint64)(uintptr_t)(ip - module->load_addr));
+                value = I64_CONST((uint64)(uintptr_t)(ip - module->load_addr));
             else
-                value = I32_CONST(
-                    (uint32)(uintptr_t)(ip - module->load_addr));
+                value = I32_CONST((uint32)(uintptr_t)(ip - module->load_addr));
         }
         else {
             if (is_64bit)
@@ -940,7 +938,7 @@ aot_compile_func(AOTCompContext *comp_ctx, uint32 func_index)
     while (frame_ip < frame_ip_end) {
         opcode = *frame_ip++;
 
-        if (comp_ctx->enable_aux_stack_frame) {
+        if (comp_ctx->aot_frame) {
             comp_ctx->aot_frame->frame_ip = frame_ip - 1;
         }
 
