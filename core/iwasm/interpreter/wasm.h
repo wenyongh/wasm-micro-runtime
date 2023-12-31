@@ -208,6 +208,11 @@ typedef union WASMValue {
         uint32 type_index;
         uint32 N;
     } array_new_default;
+    /* pointer to a memory space holding more data, current usage:
+     *  struct.new init value: WASMStructNewInitValues *
+     *  array.new init value: WASMArrayNewInitValues *
+     */
+    void *data;
 #endif
 } WASMValue;
 #endif /* end of WASM_VALUE_DEFINED */
@@ -966,6 +971,10 @@ struct WASMModule {
     /* The count of groups which finish compiling the fast jit
        functions in that group */
     uint32 fast_jit_ready_groups;
+#endif
+
+#if WASM_ENABLE_WAMR_COMPILER != 0
+    bool is_simd_used;
 #endif
 };
 
