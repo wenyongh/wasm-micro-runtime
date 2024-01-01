@@ -794,8 +794,7 @@ load_init_expr(WASMModule *module, const uint8 **p_buf, const uint8 *buf_end,
                 uint64 high, low;
 
                 CHECK_BUF(p, p_end, 1);
-                flag = read_uint8(p);
-                (void)flag;
+                (void)read_uint8(p);
 
                 CHECK_BUF(p, p_end, 16);
                 wasm_runtime_read_v128(p, &high, &low);

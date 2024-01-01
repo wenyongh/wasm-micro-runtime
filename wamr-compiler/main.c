@@ -621,7 +621,8 @@ main(int argc, char *argv[])
     }
 
     if (wasm_file_size >= 4 /* length of MAGIC NUMBER */
-        && get_package_type(wasm_file, wasm_file_size) != Wasm_Module_Bytecode) {
+        && get_package_type(wasm_file, wasm_file_size)
+               != Wasm_Module_Bytecode) {
         printf("Invalid wasm file: magic header not detected\n");
         goto fail2;
     }
