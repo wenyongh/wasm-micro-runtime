@@ -701,6 +701,12 @@ wasm_runtime_full_init(RuntimeInitArgs *init_args)
     return true;
 }
 
+void
+wasm_runtime_set_log_level(log_level_t level)
+{
+    bh_log_set_verbose_level(level);
+}
+
 bool
 wasm_runtime_is_running_mode_supported(RunningMode running_mode)
 {
@@ -2542,7 +2548,6 @@ wasm_runtime_clear_exception(WASMModuleInstanceCommon *module_inst_comm)
     wasm_runtime_set_exception(module_inst_comm, NULL);
 }
 
-#if WASM_ENABLE_THREAD_MGR != 0
 void
 wasm_runtime_terminate(WASMModuleInstanceCommon *module_inst_comm)
 {
@@ -2552,7 +2557,6 @@ wasm_runtime_terminate(WASMModuleInstanceCommon *module_inst_comm)
               || module_inst_comm->module_type == Wasm_Module_AoT);
     wasm_set_exception(module_inst, "terminated by user");
 }
-#endif
 
 void
 wasm_runtime_set_custom_data_internal(
