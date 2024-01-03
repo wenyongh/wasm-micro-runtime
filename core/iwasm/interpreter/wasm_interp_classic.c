@@ -3999,11 +3999,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
 #if !defined(OS_ENABLE_HW_BOUND_CHECK)              \
     || WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0 \
     || WASM_ENABLE_BULK_MEMORY != 0
-#if WASM_ENABLE_THREAD_MGR == 0
-                    linear_mem_size = memory->memory_data_size;
-#else
                     linear_mem_size = GET_LINEAR_MEMORY_SIZE(memory);
-#endif
 #endif
                 }
 
@@ -6271,7 +6267,7 @@ llvm_jit_call_func_bytecode(WASMModuleInstance *module_inst,
     uint32 result_count = func_type->result_count;
     uint32 ext_ret_count = result_count > 1 ? result_count - 1 : 0;
     uint32 func_idx = (uint32)(function - module_inst->e->functions);
-    bool ret;
+    bool ret = false;
 
 #if (WASM_ENABLE_DUMP_CALL_STACK != 0) || (WASM_ENABLE_PERF_PROFILING != 0) \
     || (WASM_ENABLE_JIT_STACK_FRAME != 0)
@@ -6359,7 +6355,6 @@ llvm_jit_call_func_bytecode(WASMModuleInstance *module_inst,
 
         if (argv1 != argv1_buf)
             wasm_runtime_free(argv1);
-
         ret = true;
     }
     else {

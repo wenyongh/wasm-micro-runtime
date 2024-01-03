@@ -299,6 +299,7 @@ wasm_config_new(void)
 
     memset(config, 0, sizeof(wasm_config_t));
     config->mem_alloc_type = Alloc_With_System_Allocator;
+
     return config;
 }
 
@@ -330,7 +331,17 @@ wasm_config_set_linux_perf_opt(wasm_config_t *config, bool enable)
     if (!config)
         return NULL;
 
-    config->linux_perf_support = enable;
+    config->enable_linux_perf = enable;
+    return config;
+}
+
+wasm_config_t *
+wasm_config_set_segue_flags(wasm_config_t *config, uint32 segue_flags)
+{
+    if (!config)
+        return NULL;
+
+    config->segue_flags = segue_flags;
     return config;
 }
 
@@ -380,13 +391,17 @@ wasm_engine_new_internal(wasm_config_t *config)
     init_args.mem_alloc_type = config->mem_alloc_type;
     memcpy(&init_args.mem_alloc_option, &config->mem_alloc_option,
            sizeof(MemAllocOption));
-    init_args.linux_perf_support = config->linux_perf_support;
+
+    init_args.enable_linux_perf = config->enable_linux_perf;
+    init_args.segue_flags = config->segue_flags;
 #if WASM_ENABLE_JIT != 0
+    init_args.quick_invoke_c_api_import = true;
+#endif
+
+    /* To be removed */
 #if defined(os_writegsbase)
     /* enable segue for all load/store operations */
     init_args.segue_flags = 0x1F1F;
-#endif
-    init_args.quick_invoke_c_api_import = true;
 #endif
 
     if (!wasm_runtime_full_init(&init_args)) {
@@ -3178,7 +3193,6 @@ params_to_argv(const wasm_val_vec_t *params,
             case WASM_F64:
                 *(int64 *)argv = param->of.i64;
                 argv += 2;
-                break;
                 break;
 #if WASM_ENABLE_GC == 0 && WASM_ENABLE_REF_TYPES != 0
             case WASM_ANYREF:
