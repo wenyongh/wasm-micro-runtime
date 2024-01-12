@@ -394,7 +394,6 @@ wasm_engine_new_internal(wasm_config_t *config)
     init_args.mem_alloc_type = config->mem_alloc_type;
     memcpy(&init_args.mem_alloc_option, &config->mem_alloc_option,
            sizeof(MemAllocOption));
-
     init_args.enable_linux_perf = config->enable_linux_perf;
     init_args.segue_flags = config->segue_flags;
 #if WASM_ENABLE_JIT != 0
@@ -405,10 +404,6 @@ wasm_engine_new_internal(wasm_config_t *config)
 #if defined(os_writegsbase)
     /* enable segue for all load/store operations */
     init_args.segue_flags = 0x1F1F;
-#endif
-
-#if WASM_ENABLE_JIT != 0
-    jit_options->quick_invoke_c_api_import = true;
 #endif
 
     if (!wasm_runtime_full_init(&init_args)) {

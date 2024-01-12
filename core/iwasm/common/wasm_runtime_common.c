@@ -686,8 +686,6 @@ wasm_runtime_full_init(RuntimeInitArgs *init_args)
     llvm_jit_options.size_level = init_args->llvm_jit_size_level;
     llvm_jit_options.opt_level = init_args->llvm_jit_opt_level;
     llvm_jit_options.segue_flags = init_args->segue_flags;
-    llvm_jit_options.quick_invoke_c_api_import =
-        init_args->quick_invoke_c_api_import;
 #endif
 
 #if WASM_ENABLE_LINUX_PERF != 0
