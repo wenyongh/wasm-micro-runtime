@@ -243,6 +243,8 @@ typedef struct AOTFuncContext {
     LLVMBasicBlockRef got_exception_block;
     LLVMBasicBlockRef func_return_block;
     LLVMValueRef exception_id_phi;
+    /* current ip when exception is thrown */
+    LLVMValueRef exception_ip_phi;
     LLVMValueRef func_type_indexes;
 #if WASM_ENABLE_DEBUG_AOT != 0
     LLVMMetadataRef debug_func;
@@ -432,8 +434,7 @@ typedef struct AOTCompContext {
     bool enable_llvm_pgo;
 
     /* Treat unknown import function as wasm-c-api import function
-       and allow to directly invoke it from jitted code, available
-       for LLVM JIT only */
+       and allow to directly invoke it from AOT/JIT code */
     bool quick_invoke_c_api_import;
 
     /* Use profile file collected by LLVM PGO */

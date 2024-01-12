@@ -89,7 +89,7 @@ check_exception_thrown(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx)
         return false;
     }
 
-    /* Add check exection success block */
+    /* Add check exception success block */
     if (!(check_exce_succ = LLVMAppendBasicBlockInContext(
               comp_ctx->context, func_ctx->func, "check_exce_succ"))) {
         aot_set_last_error("llvm add basic block failed.");
@@ -129,7 +129,7 @@ check_call_return(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         return false;
     }
 
-    /* Add check exection success block */
+    /* Add check exception success block */
     if (!(check_call_succ = LLVMAppendBasicBlockInContext(
               comp_ctx->context, func_ctx->func, "check_call_succ"))) {
         aot_set_last_error("llvm add basic block failed.");
@@ -292,18 +292,15 @@ call_aot_invoke_native_func(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     return true;
 }
 
-#if WASM_ENABLE_JIT != 0
 static bool
-call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
-                                  AOTFuncContext *func_ctx,
-                                  uint32 import_func_idx,
-                                  AOTFuncType *aot_func_type,
-                                  LLVMValueRef *params)
+call_aot_invoke_c_api_native(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+                             uint32 import_func_idx, AOTFuncType *aot_func_type,
+                             LLVMValueRef *params)
 {
-    LLVMTypeRef int8_ptr_type, param_types[5], ret_type;
+    LLVMTypeRef int8_ptr_type, param_types[6], ret_type;
     LLVMTypeRef value_ptr_type = NULL, value_type = NULL;
     LLVMTypeRef func_type, func_ptr_type;
-    LLVMValueRef param_values[5], res, func, value = NULL, offset;
+    LLVMValueRef param_values[6], res, func, value = NULL, offset;
     LLVMValueRef c_api_func_imports, c_api_func_import;
     LLVMValueRef c_api_params, c_api_results, value_ret;
     LLVMValueRef c_api_param_kind, c_api_param_value;
@@ -324,17 +321,21 @@ call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
     param_types[2] = INT8_PTR_TYPE; /* wasm_val_t *params */
     param_types[3] = I32_TYPE;      /* uint32 param_count */
     param_types[4] = INT8_PTR_TYPE; /* wasm_val_t *results */
+    param_types[5] = I32_TYPE;      /* uint32 result_count */
 
     ret_type = INT8_TYPE;
 
-    GET_AOT_FUNCTION(llvm_jit_invoke_c_api_native, 5);
+    GET_AOT_FUNCTION(wasm_runtime_quick_invoke_c_api_native, 6);
 
     param_values[0] = func_ctx->aot_inst;
 
     /* Get module_inst->e->common.c_api_func_imports */
     offset_c_api_func_imports =
         get_module_inst_extra_offset(comp_ctx)
-        + offsetof(WASMModuleInstanceExtra, common.c_api_func_imports);
+        + (comp_ctx->is_jit_mode
+               ? offsetof(WASMModuleInstanceExtra, common.c_api_func_imports)
+               /* offsetof(AOTModuleInstanceExtra, common.c_api_func_imports) */
+               : sizeof(uint64));
     offset = I32_CONST(offset_c_api_func_imports);
     CHECK_LLVM_CONST(offset);
     c_api_func_imports =
@@ -347,8 +348,9 @@ call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
         LLVMBuildLoad2(comp_ctx->builder, INT8_PTR_TYPE, c_api_func_imports,
                        "c_api_func_imports");
 
-    /* Get &c_api_func_imports[func_idx] */
-    offset = I32_CONST(sizeof(CApiFuncImport) * import_func_idx);
+    /* Get &c_api_func_imports[func_idx], note size of CApiFuncImport
+       is pointer_size * 3 */
+    offset = I32_CONST((comp_ctx->pointer_size * 3) * import_func_idx);
     CHECK_LLVM_CONST(offset);
     c_api_func_import =
         LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE, c_api_func_imports,
@@ -359,14 +361,19 @@ call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
     param_values[3] = I32_CONST(aot_func_type->param_count);
     CHECK_LLVM_CONST(param_values[3]);
 
+    /* Ensure sizeof(wasm_val_t) is 16 bytes */
     offset = I32_CONST(sizeof(wasm_val_t) * aot_func_type->param_count);
     c_api_results =
         LLVMBuildInBoundsGEP2(comp_ctx->builder, INT8_TYPE, func_ctx->argv_buf,
                               &offset, 1, "results");
     param_values[4] = c_api_results;
 
+    param_values[5] = I32_CONST(aot_func_type->result_count);
+    CHECK_LLVM_CONST(param_values[5]);
+
     /* Set each c api param */
     for (i = 0; i < aot_func_type->param_count; i++) {
+        /* Ensure sizeof(wasm_val_t) is 16 bytes */
         offset_param_kind = sizeof(wasm_val_t) * i;
         offset = I32_CONST(offset_param_kind);
         CHECK_LLVM_CONST(offset);
@@ -398,6 +405,7 @@ call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
 
         LLVMBuildStore(comp_ctx->builder, value, c_api_param_kind);
 
+        /* Ensure offsetof(wasm_val_t, of) is 8 bytes */
         offset_param_value = offset_param_kind + offsetof(wasm_val_t, of);
         offset = I32_CONST(offset_param_value);
         CHECK_LLVM_CONST(offset);
@@ -431,7 +439,7 @@ call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
 
     /* Call the function */
     if (!(res = LLVMBuildCall2(comp_ctx->builder, func_type, func, param_values,
-                               5, "call"))) {
+                               6, "call"))) {
         aot_set_last_error("LLVM build call failed.");
         goto fail;
     }
@@ -443,6 +451,8 @@ call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
     }
 
     for (i = 0; i < aot_func_type->result_count; i++) {
+        /* Ensure sizeof(wasm_val_t) is 16 bytes and
+           offsetof(wasm_val_t, of) is 8 bytes */
         uint32 offset_result_value =
             sizeof(wasm_val_t) * i + offsetof(wasm_val_t, of);
 
@@ -488,7 +498,6 @@ call_llvm_jit_invoke_c_api_native(AOTCompContext *comp_ctx,
 fail:
     return false;
 }
-#endif
 
 #if WASM_ENABLE_AOT_STACK_FRAME != 0 || WASM_ENABLE_JIT_STACK_FRAME != 0
 static bool
@@ -802,8 +811,8 @@ alloc_frame_for_aot_func(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
             }
         }
 
-        /* Initialize frame ref flags for import function */
-        if (func_idx < import_func_count) {
+        /* Initialize frame ref flags for import function only in JIT mode */
+        if (func_idx < import_func_count && comp_ctx->is_jit_mode) {
             aot_func_type = import_funcs[func_idx].func_type;
             for (i = 0, j = 0; i < aot_func_type->param_count; i++) {
                 if (aot_is_type_gc_reftype(aot_func_type->types[i])
@@ -1397,9 +1406,7 @@ aot_compile_op_call(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     const char *signature = NULL;
     bool ret = false;
     char buf[32];
-#if WASM_ENABLE_JIT != 0
     bool quick_invoke_c_api_import = false;
-#endif
 
     /* Check function index */
     if (func_idx >= import_func_count + func_count) {
@@ -1579,8 +1586,7 @@ aot_compile_op_call(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         }
 
         if (!signature) {
-#if WASM_ENABLE_JIT != 0
-            if (comp_ctx->is_jit_mode && comp_ctx->quick_invoke_c_api_import) {
+            if (comp_ctx->quick_invoke_c_api_import) {
                 uint32 buf_size_needed =
                     sizeof(wasm_val_t) * (param_count + result_count);
 
@@ -1599,14 +1605,11 @@ aot_compile_op_call(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
                 }
             }
             if (quick_invoke_c_api_import) {
-                if (!call_llvm_jit_invoke_c_api_native(comp_ctx, func_ctx,
-                                                       func_idx, func_type,
-                                                       param_values + 1))
+                if (!call_aot_invoke_c_api_native(comp_ctx, func_ctx, func_idx,
+                                                  func_type, param_values + 1))
                     goto fail;
             }
-            else
-#endif
-            {
+            else {
                 /* call aot_invoke_native() */
                 if (!call_aot_invoke_native_func(
                         comp_ctx, func_ctx, import_func_idx, func_type,
@@ -1776,11 +1779,7 @@ aot_compile_op_call(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
             goto fail;
     }
 
-    if (func_type->result_count > 0
-#if WASM_ENABLE_JIT != 0
-        && !quick_invoke_c_api_import
-#endif
-    ) {
+    if (func_type->result_count > 0 && !quick_invoke_c_api_import) {
         /* Push the first result to stack */
         PUSH(value_ret, func_type->types[func_type->param_count]);
         /* Load extra result from its address and push to stack */

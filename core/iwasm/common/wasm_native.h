@@ -105,8 +105,10 @@ wasm_native_init();
 void
 wasm_native_destroy();
 
+#if WASM_ENABLE_QUICK_AOT_ENTRY != 0
 void *
-wasm_native_lookup_invoke_quick(const WASMFuncType *func_type);
+wasm_native_lookup_quick_aot_entry(const WASMFuncType *func_type);
+#endif
 
 #ifdef __cplusplus
 }

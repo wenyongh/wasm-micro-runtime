@@ -161,6 +161,8 @@ static JitCompOptions jit_options = { 0 };
 #endif
 
 #if WASM_ENABLE_JIT != 0
+/* opt_level: 3, size_level: 3, segue-flags: 0,
+   quick_invoke_c_api_import: false */
 static LLVMJITOptions llvm_jit_options = { 3, 3, 0, false };
 #endif
 
@@ -645,10 +647,10 @@ wasm_runtime_get_default_running_mode(void)
 }
 
 #if WASM_ENABLE_JIT != 0
-LLVMJITOptions
+LLVMJITOptions *
 wasm_runtime_get_llvm_jit_options(void)
 {
-    return llvm_jit_options;
+    return &llvm_jit_options;
 }
 #endif
 
@@ -6024,23 +6026,25 @@ fail:
     return ret;
 }
 
-#if WASM_ENABLE_JIT != 0
 bool
-llvm_jit_invoke_c_api_native(WASMModuleInstanceCommon *inst_comm,
-                             CApiFuncImport *c_api_import, wasm_val_t *params,
-                             uint32 param_count, wasm_val_t *results)
+wasm_runtime_quick_invoke_c_api_native(WASMModuleInstanceCommon *inst_comm,
+                                       CApiFuncImport *c_api_import,
+                                       wasm_val_t *params, uint32 param_count,
+                                       wasm_val_t *results, uint32 result_count)
 {
     WASMModuleInstance *module_inst = (WASMModuleInstance *)inst_comm;
     void *func_ptr = c_api_import->func_ptr_linked;
     bool with_env_arg = c_api_import->with_env_arg, ret = true;
-    wasm_val_vec_t params_vec, results_vec;
+    wasm_val_vec_t params_vec = { 0 }, results_vec = { 0 };
     wasm_trap_t *trap = NULL;
 
     params_vec.data = params;
     params_vec.num_elems = param_count;
+    params_vec.size = param_count;
 
     results_vec.data = results;
     results_vec.num_elems = 0;
+    results_vec.size = result_count;
 
     if (!func_ptr) {
         wasm_set_exception_with_id(module_inst, EXCE_CALL_UNLINKED_IMPORT_FUNC);
@@ -6086,7 +6090,6 @@ fail:
 #endif
     return ret;
 }
-#endif
 
 void
 wasm_runtime_show_app_heap_corrupted_prompt()

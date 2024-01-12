@@ -945,7 +945,9 @@ load_custom_section(const uint8 *buf, const uint8 *buf_end, AOTModule *module,
         case AOT_CUSTOM_SECTION_NAME:
             if (!load_name_section(buf, buf_end, module, is_load_from_file_buf,
                                    error_buf, error_buf_size))
-                goto fail;
+                LOG_VERBOSE("Load name section failed.");
+            else
+                LOG_VERBOSE("Load name section success.");
             break;
 #if WASM_ENABLE_STRINGREF != 0
         case AOT_CUSTOM_SECTION_STRING_LITERAL:
@@ -1973,8 +1975,10 @@ load_types(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
         func_types[i]->param_cell_num = (uint16)param_cell_num;
         func_types[i]->ret_cell_num = (uint16)ret_cell_num;
 
-        func_types[i]->invoke_native_quick =
-            wasm_native_lookup_invoke_quick(func_types[i]);
+#if WASM_ENABLE_QUICK_AOT_ENTRY != 0
+        func_types[i]->quick_aot_entry =
+            wasm_native_lookup_quick_aot_entry(func_types[i]);
+#endif
     }
 
     *p_buf = buf;
@@ -2579,6 +2583,42 @@ load_function_section(const uint8 *buf, const uint8 *buf_end, AOTModule *module,
         p += (uint32)size * 2;
 #endif
     }
+
+#if WASM_ENABLE_GC != 0
+    /* Local(params and locals) ref flags for all import and non-imported
+     * functions. The flags indicate whether each cell in the AOTFrame local
+     * area is a GC reference. */
+    size = sizeof(LocalRefFlag)
+           * (uint64)(module->import_func_count + module->func_count);
+    if (size > 0) {
+        if (!(module->func_local_ref_flags =
+                  loader_malloc(size, error_buf, error_buf_size))) {
+            return false;
+        }
+
+        for (i = 0; i < module->import_func_count + module->func_count; i++) {
+            uint32 local_ref_flag_cell_num;
+
+            buf = (uint8 *)align_ptr(buf, sizeof(uint32));
+            read_uint32(
+                p, p_end,
+                module->func_local_ref_flags[i].local_ref_flag_cell_num);
+
+            local_ref_flag_cell_num =
+                module->func_local_ref_flags[i].local_ref_flag_cell_num;
+            size = sizeof(uint8) * (uint64)local_ref_flag_cell_num;
+            if (size > 0) {
+                if (!(module->func_local_ref_flags[i].local_ref_flags =
+                          loader_malloc(size, error_buf, error_buf_size))) {
+                    return false;
+                }
+                read_byte_array(p, p_end,
+                                module->func_local_ref_flags[i].local_ref_flags,
+                                local_ref_flag_cell_num);
+            }
+        }
+    }
+#endif /* end of WASM_ENABLE_GC != 0 */
 
     if (p != buf_end) {
         set_error_buf(error_buf, error_buf_size,
@@ -4232,6 +4272,20 @@ aot_unload(AOTModule *module)
         wasm_runtime_free(module->max_local_cell_nums);
     if (module->max_stack_cell_nums)
         wasm_runtime_free(module->max_stack_cell_nums);
+#endif
+
+#if WASM_ENABLE_GC != 0
+    if (module->func_local_ref_flags) {
+        uint32 i;
+        for (i = 0; i < module->import_func_count + module->func_count; i++) {
+            if (module->func_local_ref_flags[i].local_ref_flags) {
+                wasm_runtime_free(
+                    module->func_local_ref_flags[i].local_ref_flags);
+            }
+        }
+
+        wasm_runtime_free(module->func_local_ref_flags);
+    }
 #endif
 
     if (module->func_ptrs)
