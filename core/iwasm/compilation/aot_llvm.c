@@ -2576,16 +2576,17 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
     if (option->enable_stack_estimation)
         comp_ctx->enable_stack_estimation = true;
 
+    if (option->quick_invoke_c_api_import)
+        comp_ctx->quick_invoke_c_api_import = true;
+
     if (option->llvm_passes)
         comp_ctx->llvm_passes = option->llvm_passes;
 
     if (option->builtin_intrinsics)
         comp_ctx->builtin_intrinsics = option->builtin_intrinsics;
 
-    if (option->enable_gc) {
+    if (option->enable_gc)
         comp_ctx->enable_gc = true;
-        comp_ctx->enable_aux_stack_frame = true;
-    }
 
     comp_ctx->opt_level = option->opt_level;
     comp_ctx->size_level = option->size_level;

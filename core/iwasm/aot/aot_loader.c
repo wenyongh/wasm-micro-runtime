@@ -945,7 +945,9 @@ load_custom_section(const uint8 *buf, const uint8 *buf_end, AOTModule *module,
         case AOT_CUSTOM_SECTION_NAME:
             if (!load_name_section(buf, buf_end, module, is_load_from_file_buf,
                                    error_buf, error_buf_size))
-                goto fail;
+                LOG_VERBOSE("Load name section failed.");
+            else
+                LOG_VERBOSE("Load name section success.");
             break;
 #if WASM_ENABLE_STRINGREF != 0
         case AOT_CUSTOM_SECTION_STRING_LITERAL:
@@ -1211,6 +1213,7 @@ load_init_expr(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
                 return false;
             }
             free_if_fail = true;
+            init_values->count = field_count;
             expr->u.data = init_values;
 
             if (type_idx >= module->type_count) {
@@ -1255,26 +1258,21 @@ load_init_expr(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
         case INIT_EXPR_TYPE_ARRAY_NEW_DEFAULT:
         case INIT_EXPR_TYPE_ARRAY_NEW_FIXED:
         {
+            uint32 array_elem_type;
             uint32 type_idx, length;
-            AOTArrayType *array_type = NULL;
             WASMArrayNewInitValues *init_values = NULL;
 
+            /* Note: at this time the aot types haven't been loaded */
+            read_uint32(buf, buf_end, array_elem_type);
             read_uint32(buf, buf_end, type_idx);
             read_uint32(buf, buf_end, length);
 
-            if (type_idx >= module->type_count) {
-                set_error_buf(error_buf, error_buf_size, "unknown array type.");
-                goto fail;
-            }
-
-            array_type = (AOTArrayType *)module->types[type_idx];
-
             if (init_expr_type == INIT_EXPR_TYPE_ARRAY_NEW_DEFAULT) {
                 expr->u.array_new_default.type_index = type_idx;
-                expr->u.array_new_default.N = length;
+                expr->u.array_new_default.length = length;
             }
             else {
-
+                uint32 i, elem_size, elem_data_count;
                 uint64 size = offsetof(WASMArrayNewInitValues, elem_data)
                               + sizeof(WASMValue) * (uint64)length;
                 if (!(init_values =
@@ -1287,26 +1285,23 @@ load_init_expr(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
                 init_values->type_idx = type_idx;
                 init_values->length = length;
 
-                if (length > 0) {
-                    uint32 i;
-                    uint32 elem_size =
-                        wasm_value_type_size(array_type->elem_type);
+                elem_data_count =
+                    (init_expr_type == INIT_EXPR_TYPE_ARRAY_NEW_FIXED) ? length
+                                                                       : 1;
+                elem_size = wasm_value_type_size((uint8)array_elem_type);
 
-                    for (i = 0; i < length; i++) {
-
-                        if (elem_size <= sizeof(uint32))
-                            read_uint32(buf, buf_end,
-                                        init_values->elem_data[i].u32);
-                        else if (elem_size == sizeof(uint64))
-                            read_uint64(buf, buf_end,
-                                        init_values->elem_data[i].u64);
-                        else if (elem_size == sizeof(uint64) * 2)
-                            read_byte_array(buf, buf_end,
-                                            &init_values->elem_data[i],
-                                            elem_size);
-                        else {
-                            bh_assert(0);
-                        }
+                for (i = 0; i < elem_data_count; i++) {
+                    if (elem_size <= sizeof(uint32))
+                        read_uint32(buf, buf_end,
+                                    init_values->elem_data[i].u32);
+                    else if (elem_size == sizeof(uint64))
+                        read_uint64(buf, buf_end,
+                                    init_values->elem_data[i].u64);
+                    else if (elem_size == sizeof(uint64) * 2)
+                        read_byte_array(buf, buf_end,
+                                        &init_values->elem_data[i], elem_size);
+                    else {
+                        bh_assert(0);
                     }
                 }
             }
@@ -1976,6 +1971,11 @@ load_types(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
 
         func_types[i]->param_cell_num = (uint16)param_cell_num;
         func_types[i]->ret_cell_num = (uint16)ret_cell_num;
+
+#if WASM_ENABLE_QUICK_AOT_ENTRY != 0
+        func_types[i]->quick_aot_entry =
+            wasm_native_lookup_quick_aot_entry(func_types[i]);
+#endif
     }
 
     *p_buf = buf;
@@ -2580,6 +2580,42 @@ load_function_section(const uint8 *buf, const uint8 *buf_end, AOTModule *module,
         p += (uint32)size * 2;
 #endif
     }
+
+#if WASM_ENABLE_GC != 0
+    /* Local(params and locals) ref flags for all import and non-imported
+     * functions. The flags indicate whether each cell in the AOTFrame local
+     * area is a GC reference. */
+    size = sizeof(LocalRefFlag)
+           * (uint64)(module->import_func_count + module->func_count);
+    if (size > 0) {
+        if (!(module->func_local_ref_flags =
+                  loader_malloc(size, error_buf, error_buf_size))) {
+            return false;
+        }
+
+        for (i = 0; i < module->import_func_count + module->func_count; i++) {
+            uint32 local_ref_flag_cell_num;
+
+            buf = (uint8 *)align_ptr(buf, sizeof(uint32));
+            read_uint32(
+                p, p_end,
+                module->func_local_ref_flags[i].local_ref_flag_cell_num);
+
+            local_ref_flag_cell_num =
+                module->func_local_ref_flags[i].local_ref_flag_cell_num;
+            size = sizeof(uint8) * (uint64)local_ref_flag_cell_num;
+            if (size > 0) {
+                if (!(module->func_local_ref_flags[i].local_ref_flags =
+                          loader_malloc(size, error_buf, error_buf_size))) {
+                    return false;
+                }
+                read_byte_array(p, p_end,
+                                module->func_local_ref_flags[i].local_ref_flags,
+                                local_ref_flag_cell_num);
+            }
+        }
+    }
+#endif /* end of WASM_ENABLE_GC != 0 */
 
     if (p != buf_end) {
         set_error_buf(error_buf, error_buf_size,
@@ -4233,6 +4269,20 @@ aot_unload(AOTModule *module)
         wasm_runtime_free(module->max_local_cell_nums);
     if (module->max_stack_cell_nums)
         wasm_runtime_free(module->max_stack_cell_nums);
+#endif
+
+#if WASM_ENABLE_GC != 0
+    if (module->func_local_ref_flags) {
+        uint32 i;
+        for (i = 0; i < module->import_func_count + module->func_count; i++) {
+            if (module->func_local_ref_flags[i].local_ref_flags) {
+                wasm_runtime_free(
+                    module->func_local_ref_flags[i].local_ref_flags);
+            }
+        }
+
+        wasm_runtime_free(module->func_local_ref_flags);
+    }
 #endif
 
     if (module->func_ptrs)

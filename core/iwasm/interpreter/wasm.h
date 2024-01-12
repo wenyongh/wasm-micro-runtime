@@ -206,7 +206,7 @@ typedef union WASMValue {
     uint32 type_index;
     struct {
         uint32 type_index;
-        uint32 N;
+        uint32 length;
     } array_new_default;
     /* pointer to a memory space holding more data, current usage:
      *  struct.new init value: WASMStructNewInitValues *
@@ -349,6 +349,11 @@ typedef struct WASMFuncType {
     uint32 min_type_idx_normalized;
 #else
     uint16 ref_count;
+#endif
+
+#if WASM_ENABLE_QUICK_AOT_ENTRY != 0
+    /* Quick AOT/JIT entry of this func type */
+    void *quick_aot_entry;
 #endif
 
     /* types of params and results, only store the first byte
@@ -870,8 +875,8 @@ struct WASMModule {
     uint64 buf_code_size;
 #endif
 
-#if WASM_ENABLE_DEBUG_INTERP != 0 || WASM_ENABLE_DEBUG_AOT != 0 \
-    || WASM_ENABLE_FAST_JIT != 0
+#if WASM_ENABLE_DEBUG_INTERP != 0 || WASM_ENABLE_FAST_JIT != 0 \
+    || WASM_ENABLE_DUMP_CALL_STACK != 0 || WASM_ENABLE_JIT != 0
     uint8 *load_addr;
     uint64 load_size;
 #endif
@@ -1096,6 +1101,10 @@ wasm_value_type_size_internal(uint8 value_type, uint8 pointer_size)
 #endif
     )
         return pointer_size;
+    else if (value_type == PACKED_TYPE_I8)
+        return sizeof(int8);
+    else if (value_type == PACKED_TYPE_I16)
+        return sizeof(int16);
 #endif
     else {
         bh_assert(0);

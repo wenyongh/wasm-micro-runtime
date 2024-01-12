@@ -113,12 +113,12 @@ typedef struct AOTValueSlot {
 
 /* Frame information for translation */
 typedef struct AOTCompFrame {
-    /* The current wasm module */
-    WASMModule *cur_wasm_module;
     /* The current compilation context */
     struct AOTCompContext *comp_ctx;
     /* The current function context */
     struct AOTFuncContext *func_ctx;
+    /* The current instruction pointer which is being compiled */
+    const uint8 *frame_ip;
 
     /* Max local slot number */
     uint32 max_local_cell_num;
@@ -243,6 +243,8 @@ typedef struct AOTFuncContext {
     LLVMBasicBlockRef got_exception_block;
     LLVMBasicBlockRef func_return_block;
     LLVMValueRef exception_id_phi;
+    /* current ip when exception is thrown */
+    LLVMValueRef exception_ip_phi;
     LLVMValueRef func_type_indexes;
 #if WASM_ENABLE_DEBUG_AOT != 0
     LLVMMetadataRef debug_func;
@@ -430,6 +432,10 @@ typedef struct AOTCompContext {
 
     /* Enable LLVM PGO (Profile-Guided Optimization) */
     bool enable_llvm_pgo;
+
+    /* Treat unknown import function as wasm-c-api import function
+       and allow to directly invoke it from AOT/JIT code */
+    bool quick_invoke_c_api_import;
 
     /* Use profile file collected by LLVM PGO */
     char *use_prof_file;
