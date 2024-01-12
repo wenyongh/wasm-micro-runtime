@@ -641,6 +641,10 @@ load_type_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
             type->param_cell_num = (uint16)param_cell_num;
             type->ret_cell_num = (uint16)ret_cell_num;
 
+#if WASM_ENABLE_QUICK_AOT_ENTRY != 0
+            type->quick_aot_entry = wasm_native_lookup_quick_aot_entry(type);
+#endif
+
             /* If there is already a same type created, use it instead */
             for (j = 0; j < i; j++) {
                 if (wasm_type_equal(type, module->types[j])) {
@@ -2675,8 +2679,12 @@ handle_name_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
                             if (!(module->functions[func_index]->field_name =
                                       const_str_list_insert(
                                           p, func_name_len, module,
-                                          is_load_from_file_buf, error_buf,
-                                          error_buf_size))) {
+#if WASM_ENABLE_WAMR_COMPILER != 0
+                                          false,
+#else
+                                          is_load_from_file_buf,
+#endif
+                                          error_buf, error_buf_size))) {
                                 return false;
                             }
                         }
@@ -2848,7 +2856,7 @@ static bool
 init_llvm_jit_functions_stage1(WASMModule *module, char *error_buf,
                                uint32 error_buf_size)
 {
-    LLVMJITOptions llvm_jit_options = wasm_runtime_get_llvm_jit_options();
+    LLVMJITOptions *llvm_jit_options = wasm_runtime_get_llvm_jit_options();
     AOTCompOption option = { 0 };
     char *aot_last_error;
     uint64 size;
@@ -2888,10 +2896,11 @@ init_llvm_jit_functions_stage1(WASMModule *module, char *error_buf,
 
     option.is_jit_mode = true;
 
-    llvm_jit_options = wasm_runtime_get_llvm_jit_options();
-    option.opt_level = llvm_jit_options.opt_level;
-    option.size_level = llvm_jit_options.size_level;
-    option.segue_flags = llvm_jit_options.segue_flags;
+    option.opt_level = llvm_jit_options->opt_level;
+    option.size_level = llvm_jit_options->size_level;
+    option.segue_flags = llvm_jit_options->segue_flags;
+    option.quick_invoke_c_api_import =
+        llvm_jit_options->quick_invoke_c_api_import;
 
 #if WASM_ENABLE_BULK_MEMORY != 0
     option.enable_bulk_memory = true;
