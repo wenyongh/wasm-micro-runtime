@@ -574,7 +574,8 @@ wasm_cluster_spawn_exec_env(WASMExecEnv *exec_env)
     }
 
     /* Inherit suspend_flags of parent thread */
-    new_exec_env->suspend_flags.flags = exec_env->suspend_flags.flags;
+    new_exec_env->suspend_flags.flags =
+        (exec_env->suspend_flags.flags & WASM_SUSPEND_FLAG_INHERIT_MASK);
 
     if (!wasm_cluster_add_exec_env(cluster, new_exec_env)) {
         goto fail4;
@@ -667,6 +668,12 @@ thread_manager_start_routine(void *arg)
            since we will exit soon */
     }
 
+#if WASM_ENABLE_PERF_PROFILING != 0
+    os_printf("============= Spawned thread ===========\n");
+    wasm_runtime_dump_perf_profiling(module_inst);
+    os_printf("========================================\n");
+#endif
+
     /* Free aux stack space */
     free_aux_stack(exec_env, exec_env->aux_stack_bottom.bottom);
     /* Remove exec_env */
@@ -723,7 +730,8 @@ wasm_cluster_create_thread(WASMExecEnv *exec_env,
     }
 
     /* Inherit suspend_flags of parent thread */
-    new_exec_env->suspend_flags.flags = exec_env->suspend_flags.flags;
+    new_exec_env->suspend_flags.flags =
+        (exec_env->suspend_flags.flags & WASM_SUSPEND_FLAG_INHERIT_MASK);
 
     if (!wasm_cluster_add_exec_env(cluster, new_exec_env))
         goto fail2;

@@ -850,7 +850,7 @@ ALLOC_FRAME(WASMExecEnv *exec_env, uint32 size, WASMInterpFrame *prev_frame)
     if (frame) {
         frame->prev_frame = prev_frame;
 #if WASM_ENABLE_PERF_PROFILING != 0
-        frame->time_started = os_time_get_boot_microsecond();
+        frame->time_started = os_time_thread_cputime_us();
 #endif
     }
     else {
@@ -866,9 +866,14 @@ FREE_FRAME(WASMExecEnv *exec_env, WASMInterpFrame *frame)
 {
 #if WASM_ENABLE_PERF_PROFILING != 0
     if (frame->function) {
+        WASMInterpFrame *prev_frame = frame->prev_frame;
         frame->function->total_exec_time +=
-            os_time_get_boot_microsecond() - frame->time_started;
+            os_time_thread_cputime_us() - frame->time_started;
         frame->function->total_exec_cnt++;
+
+        if (prev_frame && prev_frame->function)
+            prev_frame->function->children_exec_time +=
+                frame->function->total_exec_time;
     }
 #endif
     wasm_exec_env_free_wasm_frame(exec_env, frame);
@@ -3839,6 +3844,12 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
         HANDLE_OP(WASM_OP_REF_IS_NULL)
         HANDLE_OP(WASM_OP_REF_FUNC)
 #endif
+#if WASM_ENABLE_JIT != 0 && WASM_ENABLE_SIMD != 0
+        /* SIMD isn't supported by interpreter, but when JIT is
+           enabled, `iwasm --interp <wasm_file>` may be run to
+           trigger the SIMD opcode in interpreter */
+        HANDLE_OP(WASM_OP_SIMD_PREFIX)
+#endif
         HANDLE_OP(WASM_OP_UNUSED_0x14)
         HANDLE_OP(WASM_OP_UNUSED_0x15)
         HANDLE_OP(WASM_OP_UNUSED_0x16)
@@ -4202,14 +4213,11 @@ llvm_jit_call_func_bytecode(WASMModuleInstance *module_inst,
 #if WASM_ENABLE_QUICK_AOT_ENTRY != 0
         /* Quick call if the quick jit entry is registered */
         if (func_type->quick_aot_entry) {
-            void (*invoke_native)(
-                void *func_ptr, uint8 ret_type, void *exec_env, uint32 *argv,
-                uint32 *argv_ret) = func_type->quick_aot_entry;
-            invoke_native(module_inst->func_ptrs[func_idx],
-                          func_type->result_count > 0
-                              ? func_type->types[func_type->param_count]
-                              : VALUE_TYPE_VOID,
-                          exec_env, argv, argv);
+            void (*invoke_native)(void *func_ptr, void *exec_env, uint32 *argv,
+                                  uint32 *argv_ret) =
+                func_type->quick_aot_entry;
+            invoke_native(module_inst->func_ptrs[func_idx], exec_env, argv,
+                          argv);
             ret = !wasm_copy_exception(module_inst, NULL);
         }
         else
