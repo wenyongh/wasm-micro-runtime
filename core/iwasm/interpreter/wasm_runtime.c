@@ -732,6 +732,101 @@ functions_instantiate(const WASMModule *module, WASMModuleInstance *module_inst,
     return functions;
 }
 
+#if WASM_ENABLE_TAGS != 0
+/**
+ * Destroy tags instances.
+ */
+static void
+tags_deinstantiate(WASMTagInstance *tags, void **import_tag_ptrs)
+{
+    if (tags) {
+        wasm_runtime_free(tags);
+    }
+    if (import_tag_ptrs) {
+        wasm_runtime_free(import_tag_ptrs);
+    }
+}
+
+/**
+ * Instantiate tags in a module.
+ */
+static WASMTagInstance *
+tags_instantiate(const WASMModule *module, WASMModuleInstance *module_inst,
+                 char *error_buf, uint32 error_buf_size)
+{
+    WASMImport *import;
+    uint32 i, tag_count = module->import_tag_count + module->tag_count;
+    uint64 total_size = sizeof(WASMTagInstance) * (uint64)tag_count;
+    WASMTagInstance *tags, *tag;
+
+    if (!(tags = runtime_malloc(total_size, error_buf, error_buf_size))) {
+        return NULL;
+    }
+
+    total_size = sizeof(void *) * (uint64)module->import_tag_count;
+    if (total_size > 0
+        && !(module_inst->e->import_tag_ptrs =
+                 runtime_malloc(total_size, error_buf, error_buf_size))) {
+        wasm_runtime_free(tags);
+        return NULL;
+    }
+
+    /* instantiate tags from import section */
+    tag = tags;
+    import = module->import_tags;
+    for (i = 0; i < module->import_tag_count; i++, import++) {
+        tag->is_import_tag = true;
+        tag->u.tag_import = &import->u.tag;
+        tag->type = import->u.tag.type;
+        tag->attribute = import->u.tag.attribute;
+#if WASM_ENABLE_MULTI_MODULE != 0
+        if (import->u.tag.import_module) {
+            if (!(tag->import_module_inst = get_sub_module_inst(
+                      module_inst, import->u.tag.import_module))) {
+                set_error_buf(error_buf, error_buf_size, "unknown tag");
+                goto fail;
+            }
+
+            if (!(tag->import_tag_inst =
+                      wasm_lookup_tag(tag->import_module_inst,
+                                      import->u.tag.field_name, NULL))) {
+                set_error_buf(error_buf, error_buf_size, "unknown tag");
+                goto fail;
+            }
+
+            /* Copy the imported tag to current instance */
+            module_inst->e->import_tag_ptrs[i] =
+                tag->u.tag_import->import_tag_linked;
+        }
+#endif
+        tag++;
+    }
+
+    /* instantiate tags from tag section */
+    for (i = 0; i < module->tag_count; i++) {
+        tag->is_import_tag = false;
+        tag->type = module->tags[i]->type;
+        tag->u.tag = module->tags[i];
+
+#if WASM_ENABLE_FAST_INTERP != 0
+        /* tag->const_cell_num = function->u.func->const_cell_num; */
+#endif
+        tag++;
+    }
+    bh_assert((uint32)(tag - tags) == tag_count);
+
+    return tags;
+
+#if WASM_ENABLE_MULTI_MODULE != 0
+fail:
+    tags_deinstantiate(tags, module_inst->e->import_tag_ptrs);
+    /* clean up */
+    module_inst->e->import_tag_ptrs = NULL;
+    return NULL;
+#endif
+}
+#endif
+
 /**
  * Destroy global instances.
  */
@@ -930,6 +1025,52 @@ export_functions_instantiate(const WASMModule *module,
     bh_assert((uint32)(export_func - export_funcs) == export_func_count);
     return export_funcs;
 }
+
+#if WASM_ENABLE_TAGS != 0
+/**
+ * Destroy export function instances.
+ */
+static void
+export_tags_deinstantiate(WASMExportTagInstance *tags)
+{
+    if (tags)
+        wasm_runtime_free(tags);
+}
+
+/**
+ * Instantiate export functions in a module.
+ */
+static WASMExportTagInstance *
+export_tags_instantiate(const WASMModule *module,
+                        WASMModuleInstance *module_inst,
+                        uint32 export_tag_count, char *error_buf,
+                        uint32 error_buf_size)
+{
+    WASMExportTagInstance *export_tags, *export_tag;
+    WASMExport *export = module->exports;
+    uint32 i;
+    uint64 total_size =
+        sizeof(WASMExportTagInstance) * (uint64)export_tag_count;
+
+    if (!(export_tag = export_tags =
+              runtime_malloc(total_size, error_buf, error_buf_size))) {
+        return NULL;
+    }
+
+    for (i = 0; i < module->export_count; i++, export ++)
+        if (export->kind == EXPORT_KIND_TAG) {
+            export_tag->name = export->name;
+
+            bh_assert((uint32)(module_inst->export_tags));
+
+            export_tag->tag = &module_inst->e->tags[export->index];
+            export_tag++;
+        }
+
+    bh_assert((uint32)(export_tag - export_tags) == export_tag_count);
+    return export_tags;
+}
+#endif
 
 #if WASM_ENABLE_MULTI_MODULE != 0
 static void
@@ -1670,6 +1811,10 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
                           "failed to allocate bitmaps");
             goto fail;
         }
+        for (i = 0; i < module->data_seg_count; i++) {
+            if (!module->data_segments[i]->is_passive)
+                bh_bitmap_set_bit(module_inst->e->common.data_dropped, i);
+        }
     }
 #endif
 #if WASM_ENABLE_REF_TYPES != 0
@@ -1681,6 +1826,10 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
             set_error_buf(error_buf, error_buf_size,
                           "failed to allocate bitmaps");
             goto fail;
+        }
+        for (i = 0; i < module->table_seg_count; i++) {
+            if (wasm_elem_is_active(module->table_segments[i].mode))
+                bh_bitmap_set_bit(module_inst->e->common.elem_dropped, i);
         }
     }
 #endif
@@ -1712,6 +1861,9 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
     module_inst->table_count = module->import_table_count + module->table_count;
     module_inst->e->function_count =
         module->import_function_count + module->function_count;
+#if WASM_ENABLE_TAGS != 0
+    module_inst->e->tag_count = module->import_tag_count + module->tag_count;
+#endif
 
     /* export */
     module_inst->export_func_count = get_export_count(module, EXPORT_KIND_FUNC);
@@ -1720,11 +1872,15 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
         get_export_count(module, EXPORT_KIND_TABLE);
     module_inst->export_memory_count =
         get_export_count(module, EXPORT_KIND_MEMORY);
+#if WASM_ENABLE_TAGS != 0
+    module_inst->e->export_tag_count =
+        get_export_count(module, EXPORT_KIND_TAG);
+#endif
     module_inst->export_global_count =
         get_export_count(module, EXPORT_KIND_GLOBAL);
 #endif
 
-    /* Instantiate memories/tables/functions */
+    /* Instantiate memories/tables/functions/tags */
     if ((module_inst->memory_count > 0
          && !(module_inst->memories =
                   memories_instantiate(module, module_inst, parent, heap_size,
@@ -1740,6 +1896,15 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
             && !(module_inst->export_functions = export_functions_instantiate(
                      module, module_inst, module_inst->export_func_count,
                      error_buf, error_buf_size)))
+#if WASM_ENABLE_TAGS != 0
+        || (module_inst->e->tag_count > 0
+            && !(module_inst->e->tags = tags_instantiate(
+                     module, module_inst, error_buf, error_buf_size)))
+        || (module_inst->e->export_tag_count > 0
+            && !(module_inst->e->export_tags = export_tags_instantiate(
+                     module, module_inst, module_inst->e->export_tag_count,
+                     error_buf, error_buf_size)))
+#endif
 #if WASM_ENABLE_MULTI_MODULE != 0
         || (module_inst->export_global_count > 0
             && !(module_inst->export_globals = export_globals_instantiate(
@@ -1757,7 +1922,6 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
     ) {
         goto fail;
     }
-
     if (global_count > 0) {
         /* Initialize the global data */
         global_data = module_inst->global_data;
@@ -2180,8 +2344,16 @@ wasm_deinstantiate(WASMModuleInstance *module_inst, bool is_sub_inst)
     tables_deinstantiate(module_inst);
     functions_deinstantiate(module_inst->e->functions,
                             module_inst->e->function_count);
+#if WASM_ENABLE_TAGS != 0
+    tags_deinstantiate(module_inst->e->tags, module_inst->e->import_tag_ptrs);
+#endif
+
     globals_deinstantiate(module_inst->e->globals);
     export_functions_deinstantiate(module_inst->export_functions);
+#if WASM_ENABLE_TAGS != 0
+    export_tags_deinstantiate(module_inst->e->export_tags);
+#endif
+
 #if WASM_ENABLE_MULTI_MODULE != 0
     export_globals_deinstantiate(module_inst->export_globals);
 #endif
@@ -2262,6 +2434,21 @@ wasm_lookup_table(const WASMModuleInstance *module_inst, const char *name)
     (void)module_inst->export_tables;
     return module_inst->tables[0];
 }
+
+#if WASM_ENABLE_TAGS != 0
+WASMTagInstance *
+wasm_lookup_tag(const WASMModuleInstance *module_inst, const char *name,
+                const char *signature)
+{
+    uint32 i;
+    for (i = 0; i < module_inst->e->export_tag_count; i++)
+        if (!strcmp(module_inst->e->export_tags[i].name, name))
+            return module_inst->e->export_tags[i].tag;
+    (void)signature;
+    return NULL;
+}
+#endif
+
 #endif
 
 #ifdef OS_ENABLE_HW_BOUND_CHECK
@@ -3278,6 +3465,7 @@ llvm_jit_table_init(WASMModuleInstance *module_inst, uint32 tbl_idx,
 {
     WASMTableInstance *tbl_inst;
     WASMTableSeg *tbl_seg;
+    uint32 *tbl_seg_elems = NULL, tbl_seg_len = 0;
 
     bh_assert(module_inst->module_type == Wasm_Module_Bytecode);
 
@@ -3287,7 +3475,13 @@ llvm_jit_table_init(WASMModuleInstance *module_inst, uint32 tbl_idx,
     bh_assert(tbl_inst);
     bh_assert(tbl_seg);
 
-    if (offset_len_out_of_bounds(src_offset, length, tbl_seg->function_count)
+    if (!bh_bitmap_get_bit(module_inst->e->common.elem_dropped, tbl_seg_idx)) {
+        /* table segment isn't dropped */
+        tbl_seg_elems = tbl_seg->func_indexes;
+        tbl_seg_len = tbl_seg->function_count;
+    }
+
+    if (offset_len_out_of_bounds(src_offset, length, tbl_seg_len)
         || offset_len_out_of_bounds(dst_offset, length, tbl_inst->cur_size)) {
         jit_set_exception_with_id(module_inst, EXCE_OUT_OF_BOUNDS_TABLE_ACCESS);
         return;
@@ -3297,21 +3491,10 @@ llvm_jit_table_init(WASMModuleInstance *module_inst, uint32 tbl_idx,
         return;
     }
 
-    if (bh_bitmap_get_bit(module_inst->e->common.elem_dropped, tbl_seg_idx)) {
-        jit_set_exception_with_id(module_inst, EXCE_OUT_OF_BOUNDS_TABLE_ACCESS);
-        return;
-    }
-
-    if (!wasm_elem_is_passive(tbl_seg->mode)) {
-        jit_set_exception_with_id(module_inst, EXCE_OUT_OF_BOUNDS_TABLE_ACCESS);
-        return;
-    }
-
     bh_memcpy_s((uint8 *)tbl_inst + offsetof(WASMTableInstance, elems)
                     + dst_offset * sizeof(uint32),
                 (uint32)sizeof(uint32) * (tbl_inst->cur_size - dst_offset),
-                tbl_seg->func_indexes + src_offset,
-                (uint32)(length * sizeof(uint32)));
+                tbl_seg_elems + src_offset, (uint32)(length * sizeof(uint32)));
 }
 
 void
@@ -3451,14 +3634,13 @@ llvm_jit_free_frame(WASMExecEnv *exec_env)
 
 #if WASM_ENABLE_PERF_PROFILING != 0
     if (frame->function) {
-        frame->function->total_exec_time +=
-            os_time_thread_cputime_us() - frame->time_started;
+        uint64 elapsed = os_time_thread_cputime_us() - frame->time_started;
+        frame->function->total_exec_time += elapsed;
         frame->function->total_exec_cnt++;
 
         /* parent function */
         if (prev_frame)
-            prev_frame->function->children_exec_time =
-                frame->function->total_exec_time;
+            prev_frame->function->children_exec_time += elapsed;
     }
 #endif
     wasm_exec_env_free_wasm_frame(exec_env, frame);

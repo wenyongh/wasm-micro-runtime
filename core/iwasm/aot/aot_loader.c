@@ -66,15 +66,15 @@ exchange_uint32(uint8 *p_data)
 }
 
 static void
-exchange_uint64(uint8 *pData)
+exchange_uint64(uint8 *p_data)
 {
     uint32 value;
 
-    value = *(uint32 *)pData;
-    *(uint32 *)pData = *(uint32 *)(pData + 4);
-    *(uint32 *)(pData + 4) = value;
-    exchange_uint32(pData);
-    exchange_uint32(pData + 4);
+    value = *(uint32 *)p_data;
+    *(uint32 *)p_data = *(uint32 *)(p_data + 4);
+    *(uint32 *)(p_data + 4) = value;
+    exchange_uint32(p_data);
+    exchange_uint32(p_data + 4);
 }
 
 static union {
@@ -214,6 +214,8 @@ GET_U16_FROM_ADDR(const uint8 *p)
         p += sizeof(type);                              \
     } while (0)
 
+/* NOLINTBEGIN, disable lint for this region with clang-tidy */
+
 #define read_byte_array(p, p_end, addr, len) \
     do {                                     \
         CHECK_BUF(p, p_end, len);            \
@@ -235,6 +237,8 @@ GET_U16_FROM_ADDR(const uint8 *p)
 #define read_uint16(p, p_end, res) TEMPLATE_READ(p, p_end, res, uint16)
 #define read_uint32(p, p_end, res) TEMPLATE_READ(p, p_end, res, uint32)
 #define read_uint64(p, p_end, res) TEMPLATE_READ(p, p_end, res, uint64)
+
+/* NOLINTEND */
 
 /* Legal values for bin_type */
 #define BIN_TYPE_ELF32L 0 /* 32-bit little endian */
