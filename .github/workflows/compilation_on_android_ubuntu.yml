@@ -20,7 +20,6 @@ on:
       - "!samples/workload/**"
       - "tests/wamr-test-suites/**"
       - "wamr-compiler/**"
-      - "wamr-sdk/**"
       - "test-tools/wamr-ide/**"
   # will be triggered on push events
   push:
@@ -38,7 +37,6 @@ on:
       - "!samples/workload/**"
       - "tests/wamr-test-suites/**"
       - "wamr-compiler/**"
-      - "wamr-sdk/**"
       - "test-tools/wamr-ide/**"
   # allow to be triggered manually
   workflow_dispatch:
@@ -430,13 +428,6 @@ jobs:
           cmake --build . --config Debug --parallel 4
           ./hello
 
-      - name: Build Sample [simple]
-        run: |
-          ./build.sh -p host-interp
-          python3 ./sample_test_run.py $(pwd)/out
-          exit $?
-        working-directory: ./samples/simple
-
       - name: Build Sample [wasi-threads]
         run: |
           cd samples/wasi-threads
@@ -657,6 +648,12 @@ jobs:
           rustup target add wasm32-wasi
           sudo apt update && sudo apt-get install -y lld ninja-build
           npm install
+        working-directory: test-tools/wamr-ide/VSCode-Extension
+
+      - name: code style check
+        run: |
+          npm install --save-dev prettier
+          npm run prettier-format-check
         working-directory: test-tools/wamr-ide/VSCode-Extension
 
       - name: build iwasm with source debugging feature

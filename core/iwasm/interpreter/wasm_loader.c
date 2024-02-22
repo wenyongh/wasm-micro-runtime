@@ -1568,8 +1568,10 @@ resolve_func_type(const uint8 **p_buf, const uint8 *buf_end, WASMModule *module,
     type->param_count = param_count;
     type->result_count = result_count;
     type->ref_type_map_count = ref_type_map_count;
-    type->result_ref_type_maps =
-        type->ref_type_maps + ref_type_map_count - result_ref_type_map_count;
+    if (ref_type_map_count > 0) {
+        type->result_ref_type_maps = type->ref_type_maps + ref_type_map_count
+                                     - result_ref_type_map_count;
+    }
 
     for (i = 0; i < param_count; i++) {
         if (!resolve_value_type(&p, p_end, module, &need_ref_type_map,
@@ -10796,8 +10798,15 @@ re_scan:
                              * Since the stack is already in polymorphic state,
                              * the opcode will not be executed, so the dummy
                              * offset won't cause any error */
-                            *loader_ctx->frame_offset++ = 0;
-                            if (cell_num > 1) {
+                            uint32 n;
+
+                            for (n = 0; n < cell_num; n++) {
+                                if (loader_ctx->p_code_compiled == NULL) {
+                                    if (!check_offset_push(loader_ctx,
+                                                           error_buf,
+                                                           error_buf_size))
+                                        goto fail;
+                                }
                                 *loader_ctx->frame_offset++ = 0;
                             }
                         }
@@ -12244,11 +12253,10 @@ re_scan:
                                                  error_buf, error_buf_size))) {
                         goto fail;
                     }
-                }
-
 #if WASM_ENABLE_FAST_INTERP != 0
-                disable_emit = true;
+                    disable_emit = true;
 #endif
+                }
 
                 /* PUSH the converted (ref ht) */
                 if (type != VALUE_TYPE_ANY) {
