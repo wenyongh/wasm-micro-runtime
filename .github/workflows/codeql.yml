@@ -27,8 +27,8 @@ jobs:
     #   - https://gh.io/supported-runners-and-hardware-resources
     #   - https://gh.io/using-larger-runners
     # Consider using larger runners for possible analysis time improvements.
-    runs-on: ${{ 'macos-latest' || 'ubuntu-20.04' }}
-    timeout-minutes: ${{ 360 }}
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-20.04' }}
+    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
     permissions:
       actions: read
       contents: read
@@ -76,7 +76,6 @@ jobs:
 
     - run: |
         ./.github/workflows/codeql_buildscript.sh
-
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
       with:
