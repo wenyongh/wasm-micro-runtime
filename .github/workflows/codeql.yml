@@ -121,5 +121,5 @@ jobs:
 
     - name: Fail if an error is found
       run: |
-        ./.github/workflows/codeql_fail_on_error \
+        ./.github/workflows/codeql_fail_on_error.py \
           ${{ steps.step1.outputs.sarif-output }}/cpp.sarif
