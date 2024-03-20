@@ -138,6 +138,8 @@ struct WASMMemoryInstance {
     DefPointer(uint8 *, heap_data_end);
     /* The heap created */
     DefPointer(void *, heap_handle);
+    /* TODO: use it to replace the g_shared_memory_lock */
+    DefPointer(korp_mutex *, memory_lock);
 
 #if WASM_ENABLE_FAST_JIT != 0 || WASM_ENABLE_JIT != 0 \
     || WASM_ENABLE_WAMR_COMPILER != 0 || WASM_ENABLE_AOT != 0
@@ -297,10 +299,9 @@ typedef struct CApiFuncImport {
 
 /* The common part of WASMModuleInstanceExtra and AOTModuleInstanceExtra */
 typedef struct WASMModuleInstanceExtraCommon {
-    CApiFuncImport *c_api_func_imports;
+#if WASM_ENABLE_MODULE_INST_CONTEXT != 0
     void *contexts[WASM_MAX_INSTANCE_CONTEXTS];
-    /* pointer to the exec env currently used */
-    WASMExecEnv *cur_exec_env;
+#endif
 #if WASM_CONFIGURABLE_BOUNDS_CHECKS != 0
     /* Disable bounds checks or not */
     bool disable_bounds_checks;
@@ -406,8 +407,6 @@ struct WASMModuleInstance {
        it denotes `AOTModule *` */
     DefPointer(WASMModule *, module);
 
-    DefPointer(void *, used_to_be_wasi_ctx); /* unused */
-
     DefPointer(WASMExecEnv *, exec_env_singleton);
     /* Array of function pointers to import functions,
        not available in AOTModuleInstance */
@@ -426,13 +425,16 @@ struct WASMModuleInstance {
     /* Function performance profiling info list, only available
        in AOTModuleInstance */
     DefPointer(struct AOTFuncPerfProfInfo *, func_perf_profilings);
+    DefPointer(CApiFuncImport *, c_api_func_imports);
+    /* Pointer to the exec env currently used */
+    DefPointer(WASMExecEnv *, cur_exec_env);
     /* WASM/AOT module extra info, for AOTModuleInstance,
        it denotes `AOTModuleInstanceExtra *` */
     DefPointer(WASMModuleInstanceExtra *, e);
 
     /* Default WASM operand stack size */
     uint32 default_wasm_stack_size;
-    uint32 reserved[3];
+    uint32 reserved[7];
 
     /*
      * +------------------------------+ <-- memories
@@ -539,8 +541,7 @@ wasm_set_running_mode(WASMModuleInstance *module_inst,
                       RunningMode running_mode);
 
 WASMFunctionInstance *
-wasm_lookup_function(const WASMModuleInstance *module_inst, const char *name,
-                     const char *signature);
+wasm_lookup_function(const WASMModuleInstance *module_inst, const char *name);
 
 #if WASM_ENABLE_MULTI_MODULE != 0
 WASMGlobalInstance *
