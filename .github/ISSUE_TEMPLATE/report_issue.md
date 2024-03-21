@@ -23,11 +23,11 @@ Upload the related wasm file, wast file or the related source file if you can.
 
 Tell us how to reproduce this bug or defect.
 
-### Expected behaviour
+### Expected behavior
 
 Tell us what should happen
 
-### Actual behaviour
+### Actual behavior
 
 Tell us what happens instead
 
