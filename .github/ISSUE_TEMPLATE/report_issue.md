@@ -12,7 +12,7 @@ Describe your bug or defect here.
 
 ### Test case
 
-Upload the related wasm file, wast file or the related source file if you can.
+Upload the related wasm file, wast file or the source files if you can.
 
 ### Your environment
 
