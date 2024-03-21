@@ -6493,6 +6493,8 @@ wasm_loader_load(uint8 *buf, uint32 size,
         return NULL;
     }
 
+    LOG_VERBOSE("wasm_loader_load\n");
+
 #if WASM_ENABLE_DEBUG_INTERP != 0 || WASM_ENABLE_FAST_JIT != 0 \
     || WASM_ENABLE_DUMP_CALL_STACK != 0 || WASM_ENABLE_JIT != 0
     module->load_addr = (uint8 *)buf;

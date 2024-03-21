@@ -3,8 +3,8 @@
 import json
 import sys
 
-# Return whether C/C++ file contains error-level results
-def codeql_cpp_contain_error(filename):
+# Return whether SARIF file contains error-level results
+def codeql_sarif_contain_error(filename):
     with open(filename, 'r') as f:
         s = json.load(f)
 
@@ -30,5 +30,5 @@ def codeql_cpp_contain_error(filename):
     return False
 
 if __name__ == "__main__":
-    if codeql_cpp_contain_error(sys.argv[1]):
+    if codeql_sarif_contain_error(sys.argv[1]):
         sys.exit(1)
