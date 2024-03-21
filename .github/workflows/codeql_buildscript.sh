@@ -4,32 +4,32 @@ sudo apt install -y build-essential cmake g++-multilib libgcc-9-dev lib32gcc-9-d
 
 WAMR_DIR=${PWD}
 
+# build wamrc
 #cd wamr-compiler
 #./build_llvm.sh
 #mkdir build && cd build
 #cmake ..
 #make
-# wamrc is generated under current directory
 
-# iwasm with default features
+# build iwasm with default features
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -fr build && mkdir build && cd build
 cmake ..
 make -j
 
-# iwasm with default features on x86_32
+# build iwasm with default features on x86_32
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -fr build && mkdir build && cd build
 cmake .. -DWAMR_BUILD_TARGET=X86_32
 make -j
 
-# iwasm with classic interpreter
+# build iwasm with classic interpreter
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_FAST_INTERP=0
 make -j
 
-# iwasm with extra features
+# build iwasm with extra features
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -fr build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug \
@@ -41,7 +41,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug \
     -DWAMR_BUILD_LOAD_CUSTOM_SECTION=1
 make -j
 
-# iwasm with several seldom used features
+# build iwasm with several seldom used features
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -fr build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug \
@@ -51,43 +51,43 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug \
     -DWAMR_BUILD_GLOBAL_HEAP_SIZE=131072
 make -j
 
-# iwasm with wasi-threads
+# build iwasm with wasi-threads
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -fr build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_LIB_WASI_THREADS=1
 make -j
 
-# iwasm with fast jit
+# build iwasm with fast jit
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_FAST_JIT=1 -DWAMR_BUILD_FAST_JIT_DUMP=1
 make -j
 
-# iwasm with gc
+# build iwasm with gc
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_GC=1
 make -j
 
-# iwasm with hardware boundary check disabled
+# build iwasm with hardware boundary check disabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_DISABLE_HW_BOUND_CHECK=1
 make -j ${nproc}
 
-# iwasm without quick AOT entry
+# build iwasm without quick AOT entry
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_QUICK_AOT_ENTRY=0
 make -j
 
-# iwasm with wakeup of blocking operations disabled
+# build iwasm with wakeup of blocking operations disabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_DISABLE_WAKEUP_BLOCKING_OP=1
 make -j
 
-# iwasm with module instance context
+# build iwasm with module instance context
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_MODULE_INST_CONTEXT=1 \
