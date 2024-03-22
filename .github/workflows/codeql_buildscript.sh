@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+sudo apt update
+
 sudo apt install -y build-essential cmake g++-multilib libgcc-12-dev lib32gcc-12-dev ccache ninja-build ccache
 
 WAMR_DIR=${PWD}
