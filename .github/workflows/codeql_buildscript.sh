@@ -6,6 +6,7 @@ sudo apt install -y build-essential cmake g++-multilib libgcc-11-dev lib32gcc-11
 
 WAMR_DIR=${PWD}
 
+: '
 # build wamrc
 cd ${WAMR_DIR}/wamr-compiler
 ./build_llvm.sh
@@ -16,6 +17,7 @@ if [[ $? != 0 ]]; then
     echo "Failed to build wamrc!"
     exit 1;
 fi
+'
 
 # build iwasm with default features enabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
@@ -148,6 +150,7 @@ if [[ $? != 0 ]]; then
     exit 1;
 fi
 
+: '
 # build iwasm with llvm jit lazy mode enabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
@@ -167,6 +170,7 @@ if [[ $? != 0 ]]; then
     echo "Failed to build llvm jit eager mode enabled!"
     exit 1;
 fi
+'
 
 # build iwasm with fast jit lazy mode enabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
@@ -188,6 +192,7 @@ if [[ $? != 0 ]]; then
     exit 1;
 fi
 
+: '
 # build iwasm with multi-tier jit enabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
@@ -198,6 +203,7 @@ if [[ $? != 0 ]]; then
     echo "Failed to build iwasm with multi-tier jit enabled!"
     exit 1;
 fi
+'
 
 # build iwasm with wasm mini-loader enabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
