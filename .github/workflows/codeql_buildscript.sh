@@ -6,6 +6,8 @@ sudo apt install -y build-essential cmake g++-multilib libgcc-11-dev lib32gcc-11
 
 WAMR_DIR=${PWD}
 
+# TODO: use pre-built llvm binary to build wamrc to
+#       avoid static code analysing for llvm
 : '
 # build wamrc
 cd ${WAMR_DIR}/wamr-compiler
@@ -150,28 +152,6 @@ if [[ $? != 0 ]]; then
     exit 1;
 fi
 
-: '
-# build iwasm with llvm jit lazy mode enabled
-cd ${WAMR_DIR}/product-mini/platforms/linux
-rm -rf build && mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_JIT=1
-make -j
-if [[ $? != 0 ]]; then
-    echo "Failed to build llvm jit lazy mode enabled!"
-    exit 1;
-fi
-
-# build iwasm with llvm jit eager mode enabled
-cd ${WAMR_DIR}/product-mini/platforms/linux
-rm -rf build && mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_JIT=1 -DWAMR_BUILD_LAZY_JIT=0
-make -j
-if [[ $? != 0 ]]; then
-    echo "Failed to build llvm jit eager mode enabled!"
-    exit 1;
-fi
-'
-
 # build iwasm with fast jit lazy mode enabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
@@ -192,7 +172,28 @@ if [[ $? != 0 ]]; then
     exit 1;
 fi
 
+# TODO: use pre-built llvm binary to build llvm-jit and multi-tier-jit
 : '
+# build iwasm with llvm jit lazy mode enabled
+cd ${WAMR_DIR}/product-mini/platforms/linux
+rm -rf build && mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_JIT=1
+make -j
+if [[ $? != 0 ]]; then
+    echo "Failed to build llvm jit lazy mode enabled!"
+    exit 1;
+fi
+
+# build iwasm with llvm jit eager mode enabled
+cd ${WAMR_DIR}/product-mini/platforms/linux
+rm -rf build && mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DWAMR_BUILD_JIT=1 -DWAMR_BUILD_LAZY_JIT=0
+make -j
+if [[ $? != 0 ]]; then
+    echo "Failed to build llvm jit eager mode enabled!"
+    exit 1;
+fi
+
 # build iwasm with multi-tier jit enabled
 cd ${WAMR_DIR}/product-mini/platforms/linux
 rm -rf build && mkdir build && cd build
