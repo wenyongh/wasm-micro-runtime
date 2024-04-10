@@ -852,8 +852,7 @@ main(int argc, char *argv[])
     init_args.instance_port = instance_port;
     if (ip_addr)
         /* ensure that init_args.ip_addr is null terminated */
-        strcpy(init_args.ip_addr, ip_addr);
-        //strncpy(init_args.ip_addr, ip_addr, sizeof(init_args.ip_addr) - 1);
+        strncpy(init_args.ip_addr, ip_addr, sizeof(init_args.ip_addr) - 1);
 #endif
 
     /* initialize runtime environment */
