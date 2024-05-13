@@ -72,17 +72,31 @@ typedef enum {
     WASM_IMPORT_EXPORT_KIND_GLOBAL
 } wasm_import_export_kind_t;
 
-typedef struct wasm_import_type {
+struct WASMFuncType;
+typedef struct WASMFuncType *wasm_func_type_t;
+
+struct WASMGlobalType;
+typedef struct WASMGlobalType *wasm_global_type_t;
+
+typedef struct wasm_import_t {
     const char *module_name;
     const char *name;
     wasm_import_export_kind_t kind;
     bool linked;
-} wasm_import_type;
+    union {
+        wasm_func_type_t func_type;
+        wasm_global_type_t global_type;
+    } u;
+} wasm_import_t;
 
-typedef struct wasm_export_type {
+typedef struct wasm_export_t {
     const char *name;
     wasm_import_export_kind_t kind;
-} wasm_export_type;
+    union {
+        wasm_func_type_t func_type;
+        wasm_global_type_t global_type;
+    } u;
+} wasm_export_t;
 
 /* Instantiated WASM module */
 struct WASMModuleInstanceCommon;
@@ -246,7 +260,7 @@ struct wasm_ref_t;
 
 typedef struct wasm_val_t {
     wasm_valkind_t kind;
-    uint8_t __paddings[7];
+    uint8_t _paddings[7];
     union {
         /* also represent a function index */
         int32_t i32;
@@ -419,7 +433,7 @@ wasm_runtime_register_module(const char *module_name, wasm_module_t module,
 
 /**
  * Check if there is already a loaded module named module_name in the
- * runtime. Repeately loading a module with the same name is not allowed.
+ * runtime. Repeatedly loading a module with the same name is not allowed.
  *
  * @param module_name indicate a name
  *
@@ -442,7 +456,7 @@ wasm_runtime_find_module_registered(const char *module_name);
  * @param buf the byte buffer which contains the WASM/AOT binary data,
  *        note that the byte buffer must be writable since runtime may
  *        change its content for footprint and performance purpose, and
- *        it must be referencable until wasm_runtime_unload is called
+ *        it must be referenceable until wasm_runtime_unload is called
  * @param size the size of the buffer
  * @param error_buf output of the exception info
  * @param error_buf_size the size of the exception string
@@ -912,7 +926,7 @@ wasm_runtime_call_wasm_v(wasm_exec_env_t exec_env,
  * @param exec_env the execution environment to call the function
  *   which must be created from wasm_create_exec_env()
  * @param element_index the function reference index, usually
- *   prvovided by the caller of a registed native function
+ *   provided by the caller of a registered native function
  * @param argc the number of arguments
  * @param argv the arguments.  If the function method has return value,
  *   the first (or first two in case 64-bit return value) element of
@@ -1160,7 +1174,7 @@ wasm_runtime_validate_native_addr(wasm_module_inst_t module_inst,
  * stable.)
  *
  * @param module_inst the WASM module instance
- * @param app_offset the app adress
+ * @param app_offset the app address
  *
  * @return the native address converted
  */
@@ -1234,7 +1248,7 @@ wasm_runtime_get_import_count(const wasm_module_t module);
  */
 WASM_RUNTIME_API_EXTERN void
 wasm_runtime_get_import_type(const wasm_module_t module, int32_t import_index,
-                             wasm_import_type *import_type);
+                             wasm_import_t *import_type);
 
 /**
  * Get the number of export items for a WASM module
@@ -1255,7 +1269,57 @@ wasm_runtime_get_export_count(const wasm_module_t module);
  */
 WASM_RUNTIME_API_EXTERN void
 wasm_runtime_get_export_type(const wasm_module_t module, int32_t export_index,
-                             wasm_export_type *export_type);
+                             wasm_export_t *export_type);
+
+/**
+ * Get the number of parameters for a function type
+ *
+ * @param func_type the function type
+ *
+ * @return the number of parameters for the function type
+ */
+WASM_RUNTIME_API_EXTERN uint32_t
+wasm_func_type_get_param_count(wasm_func_type_t const func_type);
+
+/**
+ * Get the kind of a parameter for a function type
+ *
+ * @param func_type the function type
+ * @param param_index the index of the parameter to get
+ *
+ * @return the kind of the parameter if successful, -1 otherwise
+ */
+WASM_RUNTIME_API_EXTERN wasm_valkind_t
+wasm_func_type_get_param_valkind(wasm_func_type_t const func_type,
+                                 uint32_t param_index);
+
+/**
+ * Get the number of results for a function type
+ *
+ * @param func_type the function type
+ *
+ * @return the number of results for the function type
+ */
+WASM_RUNTIME_API_EXTERN uint32_t
+wasm_func_type_get_result_count(wasm_func_type_t const func_type);
+
+/**
+ * Get the kind of a result for a function type
+ *
+ * @param func_type the function type
+ * @param result_index the index of the result to get
+ *
+ * @return the kind of the result if successful, -1 otherwise
+ */
+WASM_RUNTIME_API_EXTERN wasm_valkind_t
+wasm_func_type_get_result_valkind(wasm_func_type_t const func_type,
+                                  uint32_t result_index);
+
+WASM_RUNTIME_API_EXTERN wasm_valkind_t
+wasm_global_type_get_valkind(const wasm_global_type_t global_type);
+
+WASM_RUNTIME_API_EXTERN bool
+wasm_global_type_get_mutable(const wasm_global_type_t global_type);
 
 /**
  * Register native functions with same module name
@@ -1386,7 +1450,7 @@ WASM_RUNTIME_API_EXTERN double
 wasm_runtime_sum_wasm_exec_time(wasm_module_inst_t module_inst);
 
 /**
- * Return execution time in ms of a given wasm funciton with
+ * Return execution time in ms of a given wasm function with
  * func_name. If the function is not found, return 0.
  *
  * @param module_inst the WASM module instance to profile
@@ -1602,7 +1666,7 @@ wasm_runtime_get_version(uint32_t *major, uint32_t *minor, uint32_t *patch);
 
 /**
  * Check whether an import func `(import <module_name> <func_name> (func ...))`
- * is linked or not with runtime registered natvie functions
+ * is linked or not with runtime registered native functions
  */
 WASM_RUNTIME_API_EXTERN bool
 wasm_runtime_is_import_func_linked(const char *module_name,
@@ -1610,7 +1674,7 @@ wasm_runtime_is_import_func_linked(const char *module_name,
 
 /**
  * Check whether an import global `(import <module_name> <global_name>
- * (global ...))` is linked or not with runtime registered natvie globals
+ * (global ...))` is linked or not with runtime registered native globals
  */
 WASM_RUNTIME_API_EXTERN bool
 wasm_runtime_is_import_global_linked(const char *module_name,
@@ -1653,7 +1717,7 @@ wasm_runtime_set_enlarge_mem_error_callback(
  * to all threads in the cluster.
  * It's an undefined behavior if multiple threads in a cluster call
  * wasm_runtime_set_context_spread on the same key
- * simultaneously. It's a caller's resposibility to perform necessary
+ * simultaneously. It's a caller's responsibility to perform necessary
  * serialization if necessary. For example:
  *
  * if (wasm_runtime_get_context(inst, key) == NULL) {
@@ -1673,7 +1737,7 @@ wasm_runtime_set_enlarge_mem_error_callback(
  *
  * Note: dynamic key create/destroy while instances are live is not
  * implemented as of writing this.
- * it's caller's resposibility to ensure destorying all module instances
+ * it's caller's responsibility to ensure destroying all module instances
  * before calling wasm_runtime_create_context_key or
  * wasm_runtime_destroy_context_key.
  * otherwise, it's an undefined behavior.
@@ -1734,7 +1798,7 @@ wasm_runtime_get_context(wasm_module_inst_t inst, void *key);
  *
  * The actual wake up mechanism used by `os_wakeup_blocking_op` is
  * platform-dependent. It might impose some platform-dependent restrictions
- * on the implementation of the blocking opearation.
+ * on the implementation of the blocking operation.
  *
  * For example, on POSIX-like platforms, a signal (by default SIGUSR1) is
  * used. The signal delivery configurations (eg. signal handler, signal mask,

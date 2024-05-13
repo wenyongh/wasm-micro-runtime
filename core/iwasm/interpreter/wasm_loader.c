@@ -841,7 +841,8 @@ load_init_expr(WASMModule *module, const uint8 **p_buf, const uint8 *buf_end,
                                     "unknown global %u", global_idx);
                     goto fail;
                 }
-                if (module->import_globals[global_idx].u.global.is_mutable) {
+                if (module->import_globals[global_idx]
+                        .u.global.type.is_mutable) {
                     set_error_buf_v(error_buf, error_buf_size,
                                     "constant expression required");
                     goto fail;
@@ -854,7 +855,8 @@ load_init_expr(WASMModule *module, const uint8 **p_buf, const uint8 *buf_end,
                     goto fail;
                 }
                 if (global_idx < module->import_global_count
-                    && module->import_globals[global_idx].u.global.is_mutable) {
+                    && module->import_globals[global_idx]
+                           .u.global.type.is_mutable) {
                     set_error_buf_v(error_buf, error_buf_size,
                                     "constant expression required");
                     goto fail;
@@ -862,8 +864,8 @@ load_init_expr(WASMModule *module, const uint8 **p_buf, const uint8 *buf_end,
 #endif
 
                 if (global_idx < module->import_global_count) {
-                    global_type =
-                        module->import_globals[global_idx].u.global.type;
+                    global_type = module->import_globals[global_idx]
+                                      .u.global.type.val_type;
 #if WASM_ENABLE_GC != 0
                     if (wasm_is_type_multi_byte_type(global_type)) {
                         WASMRefType *global_ref_type =
@@ -880,7 +882,7 @@ load_init_expr(WASMModule *module, const uint8 **p_buf, const uint8 *buf_end,
                     global_type =
                         module
                             ->globals[global_idx - module->import_global_count]
-                            .type;
+                            .type.val_type;
 #if WASM_ENABLE_GC != 0
                     if (wasm_is_type_multi_byte_type(global_type)) {
                         WASMRefType *global_ref_type =
@@ -1143,14 +1145,14 @@ load_init_expr(WASMModule *module, const uint8 **p_buf, const uint8 *buf_end,
                     case WASM_OP_ANY_CONVERT_EXTERN:
                     {
                         set_error_buf(error_buf, error_buf_size,
-                                      "unsuppoted constant expression of "
+                                      "unsupported constant expression of "
                                       "extern.internalize");
                         goto fail;
                     }
                     case WASM_OP_EXTERN_CONVERT_ANY:
                     {
                         set_error_buf(error_buf, error_buf_size,
-                                      "unsuppoted constant expression of "
+                                      "unsupported constant expression of "
                                       "extern.externalize");
                         goto fail;
                     }
@@ -2404,7 +2406,8 @@ wasm_loader_resolve_global(const char *module_name, const char *global_name,
         global =
             &(module->globals[export->index - module->import_global_count]);
     }
-    if (global->type != type || global->is_mutable != is_mutable) {
+    if (global->type.val_type != type
+        || global->type.is_mutable != is_mutable) {
         LOG_DEBUG("%s,%s failed type check(%d, %d), expected(%d, %d)",
                   module_name, global_name, global->type, global->is_mutable,
                   type, is_mutable);
@@ -3059,8 +3062,8 @@ load_global_import(const uint8 **p_buf, const uint8 *buf_end,
     ret = wasm_native_lookup_libc_builtin_global(sub_module_name, global_name,
                                                  global);
     if (ret) {
-        if (global->type != declare_type
-            || global->is_mutable != declare_mutable) {
+        if (global->type.val_type != declare_type
+            || global->type.is_mutable != declare_mutable) {
             set_error_buf(error_buf, error_buf_size,
                           "incompatible import type");
             return false;
@@ -3092,13 +3095,13 @@ load_global_import(const uint8 **p_buf, const uint8 *buf_end,
 
     global->module_name = sub_module_name;
     global->field_name = global_name;
-    global->type = declare_type;
-    global->is_mutable = (declare_mutable == 1);
+    global->type.val_type = declare_type;
+    global->type.is_mutable = (declare_mutable == 1);
 
 #if WASM_ENABLE_WAMR_COMPILER != 0
-    if (global->type == VALUE_TYPE_V128)
+    if (global->type.val_type == VALUE_TYPE_V128)
         parent_module->is_simd_used = true;
-    else if (global->type == VALUE_TYPE_EXTERNREF)
+    else if (global->type.val_type == VALUE_TYPE_EXTERNREF)
         parent_module->is_ref_types_used = true;
 #endif
     (void)parent_module;
@@ -4005,7 +4008,7 @@ load_global_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
         for (i = 0; i < global_count; i++, global++) {
 #if WASM_ENABLE_GC == 0
             CHECK_BUF(p, p_end, 2);
-            global->type = read_uint8(p);
+            global->type.val_type = read_uint8(p);
             mutable = read_uint8(p);
 #else
             if (!resolve_value_type(&p, p_end, module, module->type_count,
@@ -4013,27 +4016,27 @@ load_global_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
                                     error_buf, error_buf_size)) {
                 return false;
             }
-            global->type = ref_type.ref_type;
+            global->type.val_type = ref_type.ref_type;
             CHECK_BUF(p, p_end, 1);
             mutable = read_uint8(p);
 #endif /* end of WASM_ENABLE_GC */
 
 #if WASM_ENABLE_WAMR_COMPILER != 0
-            if (global->type == VALUE_TYPE_V128)
+            if (global->type.val_type == VALUE_TYPE_V128)
                 module->is_simd_used = true;
-            else if (global->type == VALUE_TYPE_FUNCREF
-                     || global->type == VALUE_TYPE_EXTERNREF)
+            else if (global->type.val_type == VALUE_TYPE_FUNCREF
+                     || global->type.val_type == VALUE_TYPE_EXTERNREF)
                 module->is_ref_types_used = true;
 #endif
 
             if (!check_mutability(mutable, error_buf, error_buf_size)) {
                 return false;
             }
-            global->is_mutable = mutable ? true : false;
+            global->type.is_mutable = mutable ? true : false;
 
             /* initialize expression */
             if (!load_init_expr(module, &p, p_end, &(global->init_expr),
-                                global->type,
+                                global->type.val_type,
 #if WASM_ENABLE_GC == 0
                                 NULL,
 #else
@@ -4055,8 +4058,8 @@ load_global_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
                 }
 
                 if (global_idx < module->import_global_count) {
-                    global_type =
-                        module->import_globals[global_idx].u.global.type;
+                    global_type = module->import_globals[global_idx]
+                                      .u.global.type.val_type;
                     global_ref_type =
                         module->import_globals[global_idx].u.global.ref_type;
                 }
@@ -4064,14 +4067,14 @@ load_global_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
                     global_type =
                         module
                             ->globals[global_idx - module->import_global_count]
-                            .type;
+                            .type.val_type;
                     global_ref_type =
                         module
                             ->globals[global_idx - module->import_global_count]
                             .ref_type;
                 }
                 if (!wasm_reftype_is_subtype_of(
-                        global_type, global_ref_type, global->type,
+                        global_type, global_ref_type, global->type.val_type,
                         global->ref_type, module->types, module->type_count)) {
                     set_error_buf(error_buf, error_buf_size, "type mismatch");
                     return false;
@@ -5182,7 +5185,7 @@ calculate_global_data_offset(WASMModule *module)
 #if WASM_ENABLE_FAST_JIT != 0
         import_global->data_offset = data_offset;
 #endif
-        data_offset += wasm_value_type_size(import_global->type);
+        data_offset += wasm_value_type_size(import_global->type.val_type);
     }
 
     for (i = 0; i < module->global_count; i++) {
@@ -5190,7 +5193,7 @@ calculate_global_data_offset(WASMModule *module)
 #if WASM_ENABLE_FAST_JIT != 0
         global->data_offset = data_offset;
 #endif
-        data_offset += wasm_value_type_size(global->type);
+        data_offset += wasm_value_type_size(global->type.val_type);
     }
 
     module->global_data_size = data_offset;
@@ -5433,7 +5436,7 @@ orcjit_thread_callback(void *arg)
     uint32 i;
 
 #if WASM_ENABLE_FAST_JIT != 0
-    /* Compile fast jit funcitons of this group */
+    /* Compile fast jit functions of this group */
     for (i = group_idx; i < func_count; i += group_stride) {
         if (!jit_compiler_compile(module, i + module->import_function_count)) {
             LOG_ERROR("failed to compile fast jit function %u\n", i);
@@ -5547,7 +5550,7 @@ orcjit_thread_callback(void *arg)
                     i + j * group_stride + module->import_function_count,
                     (void *)func_addr);
 
-                /* Try to switch to call this llvm jit funtion instead of
+                /* Try to switch to call this llvm jit function instead of
                    fast jit function from fast jit jitted code */
                 jit_compiler_set_call_to_llvm_jit(
                     module,
@@ -5807,7 +5810,8 @@ load_from_sections(WASMModule *module, WASMSection *sections,
             if (!strcmp(export->name, "__heap_base")) {
                 global_index = export->index - module->import_global_count;
                 global = module->globals + global_index;
-                if (global->type == VALUE_TYPE_I32 && !global->is_mutable
+                if (global->type.val_type == VALUE_TYPE_I32
+                    && !global->type.is_mutable
                     && global->init_expr.init_expr_type
                            == INIT_EXPR_TYPE_I32_CONST) {
                     aux_heap_base_global = global;
@@ -5820,7 +5824,8 @@ load_from_sections(WASMModule *module, WASMSection *sections,
             else if (!strcmp(export->name, "__data_end")) {
                 global_index = export->index - module->import_global_count;
                 global = module->globals + global_index;
-                if (global->type == VALUE_TYPE_I32 && !global->is_mutable
+                if (global->type.val_type == VALUE_TYPE_I32
+                    && !global->type.is_mutable
                     && global->init_expr.init_expr_type
                            == INIT_EXPR_TYPE_I32_CONST) {
                     aux_data_end_global = global;
@@ -5860,9 +5865,9 @@ load_from_sections(WASMModule *module, WASMSection *sections,
                 for (global_index = 0; global_index < module->global_count;
                      global_index++) {
                     global = module->globals + global_index;
-                    if (global->is_mutable /* heap_base and data_end is
+                    if (global->type.is_mutable /* heap_base and data_end is
                                               not mutable */
-                        && global->type == VALUE_TYPE_I32
+                        && global->type.val_type == VALUE_TYPE_I32
                         && global->init_expr.init_expr_type
                                == INIT_EXPR_TYPE_I32_CONST
                         && (uint64)(uint32)global->init_expr.u.i32
@@ -6431,7 +6436,7 @@ check_wasi_abi_compatibility(const WASMModule *module,
 {
     /**
      * be careful with:
-     * wasi compatiable modules(command/reactor) which don't import any wasi
+     * wasi compatible modules(command/reactor) which don't import any wasi
      * APIs. Usually, a command has to import a "prox_exit" at least, but a
      * reactor can depend on nothing. At the same time, each has its own entry
      * point.
@@ -6508,7 +6513,7 @@ check_wasi_abi_compatibility(const WASMModule *module,
         }
     }
 
-    /* filter out non-wasi compatiable modules */
+    /* filter out non-wasi compatible modules */
     if (!module->import_wasi_api && !start && !initialize) {
         return true;
     }
@@ -6521,7 +6526,7 @@ check_wasi_abi_compatibility(const WASMModule *module,
 
     /*
      * there is at least one of `_start` and `_initialize` in below cases.
-     * according to the assumption, they should be all wasi compatiable
+     * according to the assumption, they should be all wasi compatible
      */
 
 #if WASM_ENABLE_MULTI_MODULE != 0
@@ -6786,7 +6791,7 @@ wasm_loader_unload(WASMModule *module)
             WASMRegisteredModule *next = bh_list_elem_next(node);
             bh_list_remove(module->import_module_list, node);
             /*
-             * unload(sub_module) will be trigged during runtime_destroy().
+             * unload(sub_module) will be triggered during runtime_destroy().
              * every module in the global module list will be unloaded one by
              * one. so don't worry.
              */
@@ -7049,9 +7054,9 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
                 break;
 
             case WASM_OP_BR_TABLE:
-                read_leb_uint32(p, p_end, count); /* lable num */
+                read_leb_uint32(p, p_end, count); /* label num */
 #if WASM_ENABLE_FAST_INTERP != 0
-                for (i = 0; i <= count; i++) /* lableidxs */
+                for (i = 0; i <= count; i++) /* labelidxs */
                     skip_leb_uint32(p, p_end);
 #else
                 p += count + 1;
@@ -7062,7 +7067,7 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
 
 #if WASM_ENABLE_FAST_INTERP == 0
             case EXT_OP_BR_TABLE_CACHE:
-                read_leb_uint32(p, p_end, count); /* lable num */
+                read_leb_uint32(p, p_end, count); /* label num */
                 while (*p == WASM_OP_NOP)
                     p++;
                 break;
@@ -7086,7 +7091,7 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
 #if WASM_ENABLE_REF_TYPES == 0 && WASM_ENABLE_GC == 0
                 u8 = read_uint8(p); /* 0x00 */
 #else
-                skip_leb_uint32(p, p_end); /* talbeidx */
+                skip_leb_uint32(p, p_end); /* tableidx */
 #endif
                 break;
 
@@ -7661,7 +7666,7 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
             {
                 WASMDebugInstance *debug_instance =
                     wasm_exec_env_get_instance(exec_env);
-                char orignal_opcode[1];
+                char original_opcode[1];
                 uint64 size = 1;
                 WASMModuleInstance *module_inst =
                     (WASMModuleInstance *)exec_env->module_inst;
@@ -7670,12 +7675,12 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
                                     : ~0;
                 if (debug_instance) {
                     if (wasm_debug_instance_get_obj_mem(debug_instance, offset,
-                                                        orignal_opcode, &size)
+                                                        original_opcode, &size)
                         && size == 1) {
                         LOG_VERBOSE("WASM loader find OP_BREAK , recover it "
                                     "with  %02x: ",
-                                    orignal_opcode[0]);
-                        opcode = orignal_opcode[0];
+                                    original_opcode[0]);
+                        opcode = original_opcode[0];
                         goto op_break_retry;
                     }
                 }
@@ -9373,7 +9378,7 @@ wasm_loader_get_const_offset(WASMLoaderContext *ctx, uint8 type, void *value,
                             sizeof(float64));
                 ctx->const_cell_num += 2;
                 /* The const buf will be reversed, we use the second cell */
-                /* of the i64/f64 const so the finnal offset is corrent */
+                /* of the i64/f64 const so the final offset is correct */
                 operand_offset++;
                 break;
             case VALUE_TYPE_I64:
@@ -9405,7 +9410,7 @@ wasm_loader_get_const_offset(WASMLoaderContext *ctx, uint8 type, void *value,
         LOG_OP("#### new const [%d]: %ld\n", ctx->num_const,
                (int64)c->value.i64);
     }
-    /* use negetive index for const */
+    /* use negative index for const */
     operand_offset = -(operand_offset + 1);
     *offset = operand_offset;
     return true;
@@ -11300,7 +11305,7 @@ re_scan:
                  * CATCH Blocks */
                 RESET_STACK();
 
-                /* push types on the stack according to catched type */
+                /* push types on the stack according to caught type */
                 if (BLOCK_HAS_PARAM(new_block_type)) {
                     for (i = 0; i < new_block_type.u.type->param_count; i++)
                         PUSH_TYPE(new_block_type.u.type->types[i]);
@@ -11333,6 +11338,7 @@ re_scan:
             }
 #endif /* end of WASM_ENABLE_EXCE_HANDLING != 0 */
             case WASM_OP_ELSE:
+            handle_op_else:
             {
                 BranchBlock *block = NULL;
                 BlockType block_type;
@@ -11405,57 +11411,21 @@ re_scan:
                                        error_buf_size))
                     goto fail;
 
-                /* if no else branch, and return types do not match param types,
-                   report failure */
+                /* if there is no else branch, make a virtual else opcode for
+                   easier integrity check and to copy the correct results to
+                   the block return address for fast-interp mode:
+                   change if block from `if ... end` to `if ... else end` */
                 if (cur_block->label_type == LABEL_TYPE_IF
                     && !cur_block->else_addr) {
-                    uint32 block_param_count = 0, block_ret_count = 0;
-                    uint8 *block_param_types = NULL, *block_ret_types = NULL;
-                    BlockType *cur_block_type = &cur_block->block_type;
-#if WASM_ENABLE_GC != 0
-                    uint32 block_param_reftype_map_count;
-                    uint32 block_ret_reftype_map_count;
-                    WASMRefTypeMap *block_param_reftype_maps;
-                    WASMRefTypeMap *block_ret_reftype_maps;
+                    opcode = WASM_OP_ELSE;
+                    p--;
+#if WASM_ENABLE_FAST_INTERP != 0
+                    p_org = p;
+                    skip_label();
+                    disable_emit = false;
+                    emit_label(opcode);
 #endif
-
-                    block_param_count = block_type_get_param_types(
-                        cur_block_type, &block_param_types
-#if WASM_ENABLE_GC != 0
-                        ,
-                        &block_param_reftype_maps,
-                        &block_param_reftype_map_count
-#endif
-                    );
-                    block_ret_count = block_type_get_result_types(
-                        cur_block_type, &block_ret_types
-#if WASM_ENABLE_GC != 0
-                        ,
-                        &block_ret_reftype_maps, &block_ret_reftype_map_count
-#endif
-                    );
-
-                    if (block_param_count != block_ret_count
-                        || (block_param_count
-                            && memcmp(block_param_types, block_ret_types,
-                                      block_param_count))) {
-                        set_error_buf(error_buf, error_buf_size,
-                                      "type mismatch: else branch missing");
-                        goto fail;
-                    }
-#if WASM_ENABLE_GC != 0
-                    if (block_param_reftype_map_count
-                            != block_ret_reftype_map_count
-                        || (block_param_reftype_map_count
-                            && memcmp(block_param_reftype_maps,
-                                      block_ret_reftype_maps,
-                                      sizeof(WASMRefTypeMap)
-                                          * block_param_reftype_map_count))) {
-                        set_error_buf(error_buf, error_buf_size,
-                                      "type mismatch: else branch missing");
-                        goto fail;
-                    }
-#endif
+                    goto handle_op_else;
                 }
 
                 POP_CSP();
@@ -12418,7 +12388,8 @@ re_scan:
                     uint32 j;
 
                     for (i = 0; i < module->global_count; i++) {
-                        if (module->globals[i].type == VALUE_TYPE_FUNCREF
+                        if (module->globals[i].type.val_type
+                                == VALUE_TYPE_FUNCREF
                             && module->globals[i].init_expr.init_expr_type
                                    == INIT_EXPR_TYPE_FUNCREF_CONST
                             && module->globals[i].init_expr.u.u32 == func_idx) {
@@ -12802,13 +12773,13 @@ re_scan:
                     goto fail;
                 }
 
-                global_type =
-                    global_idx < module->import_global_count
-                        ? module->import_globals[global_idx].u.global.type
-                        : module
-                              ->globals[global_idx
-                                        - module->import_global_count]
-                              .type;
+                global_type = global_idx < module->import_global_count
+                                  ? module->import_globals[global_idx]
+                                        .u.global.type.val_type
+                                  : module
+                                        ->globals[global_idx
+                                                  - module->import_global_count]
+                                        .type.val_type;
 #if WASM_ENABLE_GC != 0
                 ref_type =
                     global_idx < module->import_global_count
@@ -12862,13 +12833,13 @@ re_scan:
                     goto fail;
                 }
 
-                is_mutable =
-                    global_idx < module->import_global_count
-                        ? module->import_globals[global_idx].u.global.is_mutable
-                        : module
-                              ->globals[global_idx
-                                        - module->import_global_count]
-                              .is_mutable;
+                is_mutable = global_idx < module->import_global_count
+                                 ? module->import_globals[global_idx]
+                                       .u.global.type.is_mutable
+                                 : module
+                                       ->globals[global_idx
+                                                 - module->import_global_count]
+                                       .type.is_mutable;
                 if (!is_mutable) {
 #if WASM_ENABLE_GC == 0
                     set_error_buf(error_buf, error_buf_size,
@@ -12880,13 +12851,13 @@ re_scan:
                     goto fail;
                 }
 
-                global_type =
-                    global_idx < module->import_global_count
-                        ? module->import_globals[global_idx].u.global.type
-                        : module
-                              ->globals[global_idx
-                                        - module->import_global_count]
-                              .type;
+                global_type = global_idx < module->import_global_count
+                                  ? module->import_globals[global_idx]
+                                        .u.global.type.val_type
+                                  : module
+                                        ->globals[global_idx
+                                                  - module->import_global_count]
+                                        .type.val_type;
 #if WASM_ENABLE_GC != 0
                 ref_type =
                     global_idx < module->import_global_count
@@ -13643,7 +13614,7 @@ re_scan:
 
                             if (u32 >= module->data_seg_count) {
                                 set_error_buf(error_buf, error_buf_size,
-                                              "unknown data segement");
+                                              "unknown data segment");
                                 goto fail;
                             }
 
@@ -13662,7 +13633,7 @@ re_scan:
 
                             if (u32 >= module->table_seg_count) {
                                 set_error_buf(error_buf, error_buf_size,
-                                              "unknown element segement");
+                                              "unknown element segment");
                                 goto fail;
                             }
                             if (!wasm_reftype_is_subtype_of(

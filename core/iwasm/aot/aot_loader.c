@@ -94,7 +94,7 @@ check_buf(const uint8 *buf, const uint8 *buf_end, uint32 length,
 {
     if ((uintptr_t)buf + length < (uintptr_t)buf
         || (uintptr_t)buf + length > (uintptr_t)buf_end) {
-        set_error_buf(error_buf, error_buf_size, "unexpect end");
+        set_error_buf(error_buf, error_buf_size, "unexpected end");
         return false;
     }
     return true;
@@ -323,13 +323,13 @@ load_string(uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
 #endif
     else if (is_load_from_file_buf) {
         /* The string is always terminated with '\0', use it directly.
-         * In this case, the file buffer can be reffered to after loading.
+         * In this case, the file buffer can be referred to after loading.
          */
         bh_assert(p[str_len - 1] == '\0');
         str = (char *)p;
     }
     else {
-        /* Load from sections, the file buffer cannot be reffered to
+        /* Load from sections, the file buffer cannot be referred to
            after loading, we must create another string and insert it
            into const string set */
         bh_assert(p[str_len - 1] == '\0');
@@ -2042,8 +2042,8 @@ load_import_globals(const uint8 **p_buf, const uint8 *buf_end,
     /* Create each import global */
     for (i = 0; i < module->import_global_count; i++) {
         buf = (uint8 *)align_ptr(buf, 2);
-        read_uint8(buf, buf_end, import_globals[i].type);
-        read_uint8(buf, buf_end, import_globals[i].is_mutable);
+        read_uint8(buf, buf_end, import_globals[i].type.val_type);
+        read_uint8(buf, buf_end, import_globals[i].type.is_mutable);
         read_string(buf, buf_end, import_globals[i].module_name);
         read_string(buf, buf_end, import_globals[i].global_name);
 
@@ -2051,8 +2051,9 @@ load_import_globals(const uint8 **p_buf, const uint8 *buf_end,
         if (wasm_native_lookup_libc_builtin_global(
                 import_globals[i].module_name, import_globals[i].global_name,
                 &tmp_global)) {
-            if (tmp_global.type != import_globals[i].type
-                || tmp_global.is_mutable != import_globals[i].is_mutable) {
+            if (tmp_global.type.val_type != import_globals[i].type.val_type
+                || tmp_global.type.is_mutable
+                       != import_globals[i].type.is_mutable) {
                 set_error_buf(error_buf, error_buf_size,
                               "incompatible import type");
                 return false;
@@ -2065,7 +2066,8 @@ load_import_globals(const uint8 **p_buf, const uint8 *buf_end,
         import_globals[i].is_linked = false;
 #endif
 
-        import_globals[i].size = wasm_value_type_size(import_globals[i].type);
+        import_globals[i].size =
+            wasm_value_type_size(import_globals[i].type.val_type);
         import_globals[i].data_offset = data_offset;
         data_offset += import_globals[i].size;
         module->global_data_size += import_globals[i].size;
@@ -2130,8 +2132,8 @@ load_globals(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
 
     /* Create each global */
     for (i = 0; i < module->global_count; i++) {
-        read_uint8(buf, buf_end, globals[i].type);
-        read_uint8(buf, buf_end, globals[i].is_mutable);
+        read_uint8(buf, buf_end, globals[i].type.val_type);
+        read_uint8(buf, buf_end, globals[i].type.is_mutable);
 
         buf = align_ptr(buf, 4);
 
@@ -2139,7 +2141,7 @@ load_globals(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
                             error_buf, error_buf_size))
             return false;
 
-        globals[i].size = wasm_value_type_size(globals[i].type);
+        globals[i].size = wasm_value_type_size(globals[i].type.val_type);
         globals[i].data_offset = data_offset;
         data_offset += globals[i].size;
         module->global_data_size += globals[i].size;
@@ -2518,7 +2520,7 @@ load_function_section(const uint8 *buf, const uint8 *buf_end, AOTModule *module,
 #if defined(BUILD_TARGET_XTENSA)
     /*
      * For Xtensa XIP, real func_count is doubled, including aot_func and
-     * aot_func_internal, so need to multipy func_count by 2 here.
+     * aot_func_internal, so need to multiply func_count by 2 here.
      */
     if (module->is_indirect_mode) {
         func_count *= 2;
@@ -3912,7 +3914,7 @@ resolve_execute_mode(const uint8 *buf, uint32 size, bool *p_mode,
     p += 8;
     while (p < p_end) {
         read_uint32(p, p_end, section_type);
-        if (section_type <= AOT_SECTION_TYPE_SIGANATURE) {
+        if (section_type <= AOT_SECTION_TYPE_SIGNATURE) {
             read_uint32(p, p_end, section_size);
             CHECK_BUF(p, p_end, section_size);
             if (section_type == AOT_SECTION_TYPE_TARGET_INFO) {
@@ -3927,7 +3929,7 @@ resolve_execute_mode(const uint8 *buf, uint32 size, bool *p_mode,
                 break;
             }
         }
-        else { /* section_type > AOT_SECTION_TYPE_SIGANATURE */
+        else { /* section_type > AOT_SECTION_TYPE_SIGNATURE */
             set_error_buf(error_buf, error_buf_size,
                           "resolve execute mode failed");
             break;
@@ -3966,7 +3968,7 @@ create_sections(AOTModule *module, const uint8 *buf, uint32 size,
     p += 8;
     while (p < p_end) {
         read_uint32(p, p_end, section_type);
-        if (section_type < AOT_SECTION_TYPE_SIGANATURE
+        if (section_type < AOT_SECTION_TYPE_SIGNATURE
             || section_type == AOT_SECTION_TYPE_CUSTOM) {
             read_uint32(p, p_end, section_size);
             CHECK_BUF(p, p_end, section_size);

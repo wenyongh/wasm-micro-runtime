@@ -2241,8 +2241,8 @@ aot_emit_import_global_info(uint8 *buf, uint8 *buf_end, uint32 *p_offset,
 
     for (i = 0; i < comp_data->import_global_count; i++, import_global++) {
         offset = align_uint(offset, 2);
-        EMIT_U8(import_global->type);
-        EMIT_U8(import_global->is_mutable);
+        EMIT_U8(import_global->type.val_type);
+        EMIT_U8(import_global->type.is_mutable);
         EMIT_STR(import_global->module_name);
         offset = align_uint(offset, 2);
         EMIT_STR(import_global->global_name);
@@ -2273,8 +2273,8 @@ aot_emit_global_info(uint8 *buf, uint8 *buf_end, uint32 *p_offset,
 
     for (i = 0; i < comp_data->global_count; i++, global++) {
         offset = align_uint(offset, 4);
-        EMIT_U8(global->type);
-        EMIT_U8(global->is_mutable);
+        EMIT_U8(global->type.val_type);
+        EMIT_U8(global->type.is_mutable);
 
         offset = align_uint(offset, 4);
         if (!aot_emit_init_expr(buf, buf_end, &offset, comp_ctx,
@@ -3090,7 +3090,7 @@ aot_resolve_target_info(AOTCompContext *comp_ctx, AOTObjectData *obj_data)
         && bin_type != LLVMBinaryTypeMachO32B
         && bin_type != LLVMBinaryTypeMachO64L
         && bin_type != LLVMBinaryTypeMachO64B) {
-        aot_set_last_error("invaid llvm binary bin_type.");
+        aot_set_last_error("invalid llvm binary bin_type.");
         return false;
     }
 
@@ -3166,13 +3166,13 @@ aot_resolve_target_info(AOTCompContext *comp_ctx, AOTObjectData *obj_data)
     else if (bin_type == LLVMBinaryTypeMachO32L
              || bin_type == LLVMBinaryTypeMachO32B) {
         /* TODO: parse file type of Mach-O 32 */
-        aot_set_last_error("invaid llvm binary bin_type.");
+        aot_set_last_error("invalid llvm binary bin_type.");
         return false;
     }
     else if (bin_type == LLVMBinaryTypeMachO64L
              || bin_type == LLVMBinaryTypeMachO64B) {
         /* TODO: parse file type of Mach-O 64 */
-        aot_set_last_error("invaid llvm binary bin_type.");
+        aot_set_last_error("invalid llvm binary bin_type.");
         return false;
     }
 

@@ -856,7 +856,7 @@ check_global_init_expr(const WASMModule *module, uint32 global_index,
      * And initializer expression cannot reference a mutable global.
      */
     if (global_index >= module->import_global_count
-        || (module->import_globals + global_index)->u.global.is_mutable) {
+        || (module->import_globals + global_index)->u.global.type.is_mutable) {
         set_error_buf(error_buf, error_buf_size,
                       "constant expression required");
         return false;
@@ -888,8 +888,8 @@ globals_instantiate(WASMModule *module, WASMModuleInstance *module_inst,
     import = module->import_globals;
     for (i = 0; i < module->import_global_count; i++, import++) {
         WASMGlobalImport *global_import = &import->u.global;
-        global->type = global_import->type;
-        global->is_mutable = global_import->is_mutable;
+        global->type = global_import->type.val_type;
+        global->is_mutable = global_import->type.is_mutable;
 #if WASM_ENABLE_GC != 0
         global->ref_type = global_import->ref_type;
 #endif
@@ -935,8 +935,8 @@ globals_instantiate(WASMModule *module, WASMModuleInstance *module_inst,
         InitializerExpression *init_expr = &(module->globals[i].init_expr);
         uint8 flag = init_expr->init_expr_type;
 
-        global->type = module->globals[i].type;
-        global->is_mutable = module->globals[i].is_mutable;
+        global->type = module->globals[i].type.val_type;
+        global->is_mutable = module->globals[i].type.is_mutable;
 #if WASM_ENABLE_FAST_JIT != 0
         bh_assert(global_data_offset == module->globals[i].data_offset);
 #endif
@@ -1355,7 +1355,7 @@ execute_post_instantiate_functions(WASMModuleInstance *module_inst,
         }
     }
 
-    /* Execute start function for both main insance and sub instance */
+    /* Execute start function for both main instance and sub instance */
     if (start_func && !wasm_call_function(exec_env, start_func, 0, NULL)) {
         goto fail;
     }
@@ -2022,7 +2022,7 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
         * (module->import_memory_count + module->memory_count);
 
 #if WASM_ENABLE_JIT != 0
-    /* If the module dosen't have memory, reserve one mem_info space
+    /* If the module doesn't have memory, reserve one mem_info space
        with empty content to align with llvm jit compiler */
     if (module_inst_mem_inst_size == 0)
         module_inst_mem_inst_size = (uint64)sizeof(WASMMemoryInstance);
@@ -3791,13 +3791,13 @@ wasm_get_module_inst_mem_consumption(const WASMModuleInstance *module_inst,
         mem_conspn->app_heap_size += memory->heap_data_end - memory->heap_data;
         /* size of app heap structure */
         mem_conspn->memories_size += mem_allocator_get_heap_struct_size();
-        /* Module instance structures have been appened into the end of
+        /* Module instance structures have been appended into the end of
            module instance */
     }
 
     mem_conspn->tables_size =
         sizeof(WASMTableInstance *) * module_inst->table_count;
-    /* Table instance structures and table elements have been appened into
+    /* Table instance structures and table elements have been appended into
        the end of module instance */
 
     mem_conspn->functions_size =
@@ -3805,7 +3805,7 @@ wasm_get_module_inst_mem_consumption(const WASMModuleInstance *module_inst,
 
     mem_conspn->globals_size =
         sizeof(WASMGlobalInstance) * module_inst->e->global_count;
-    /* Global data has been appened into the end of module instance */
+    /* Global data has been appended into the end of module instance */
 
     mem_conspn->exports_size =
         sizeof(WASMExportFuncInstance) * module_inst->export_func_count;

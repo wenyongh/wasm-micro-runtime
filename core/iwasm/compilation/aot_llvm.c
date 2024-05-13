@@ -1973,10 +1973,12 @@ aot_set_llvm_basic_types(AOTLLVMTypes *basic_types, LLVMContextRef context,
     if (pointer_size == 4) {
         basic_types->intptr_t_type = basic_types->int32_type;
         basic_types->intptr_t_ptr_type = basic_types->int32_ptr_type;
+        basic_types->size_t_type = basic_types->int32_type;
     }
     else {
         basic_types->intptr_t_type = basic_types->int64_type;
         basic_types->intptr_t_ptr_type = basic_types->int64_ptr_type;
+        basic_types->size_t_type = basic_types->int64_type;
     }
 
     basic_types->gc_ref_type = basic_types->int8_ptr_type;
@@ -2416,7 +2418,7 @@ orc_jit_create(AOTCompContext *comp_ctx)
     }
 
     if (comp_ctx->enable_stack_bound_check || comp_ctx->enable_stack_estimation)
-        LLVMOrcLLJITBuilderSetCompileFuncitonCreatorWithStackSizesCallback(
+        LLVMOrcLLJITBuilderSetCompileFunctionCreatorWithStackSizesCallback(
             builder, jit_stack_size_callback, comp_ctx);
 
     err = LLVMOrcJITTargetMachineBuilderDetectHost(&jtmb);
