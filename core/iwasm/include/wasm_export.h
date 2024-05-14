@@ -249,7 +249,8 @@ enum wasm_valkind_enum {
     WASM_I64,
     WASM_F32,
     WASM_F64,
-    WASM_ANYREF = 128,
+    WASM_V128,
+    WASM_EXTERNREF = 128,
     WASM_FUNCREF,
 };
 #endif
@@ -1315,9 +1316,23 @@ WASM_RUNTIME_API_EXTERN wasm_valkind_t
 wasm_func_type_get_result_valkind(wasm_func_type_t const func_type,
                                   uint32_t result_index);
 
+/**
+ * Get the kind for a global type
+ *
+ * @param global_type the global type
+ *
+ * @return the kind of the global
+ */
 WASM_RUNTIME_API_EXTERN wasm_valkind_t
 wasm_global_type_get_valkind(const wasm_global_type_t global_type);
 
+/**
+ * Get the mutability for a global type
+ *
+ * @param global_type the global type
+ *
+ * @return true if mutable, false otherwise
+ */
 WASM_RUNTIME_API_EXTERN bool
 wasm_global_type_get_mutable(const wasm_global_type_t global_type);
 

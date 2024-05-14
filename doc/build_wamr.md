@@ -79,7 +79,7 @@ cmake -DWAMR_BUILD_PLATFORM=linux -DWAMR_BUILD_TARGET=ARM
 #### **Enable memory64 feature**
 - **WAMR_BUILD_MEMORY64**=1/0, default to disable if not set
 
-> Note: Currently, the memory64 feature is only supported in classic interpreter running mode.
+> Note: Currently, the memory64 feature is only supported in classic interpreter running mode and AOT mode.
 
 #### **Enable thread manager**
 - **WAMR_BUILD_THREAD_MGR**=1/0, default to disable if not set
@@ -286,7 +286,7 @@ Currently we only profile the memory consumption of module, module_instance and 
 > Note: See [Tuning the XIP intrinsic functions](./xip.md#tuning-the-xip-intrinsic-functions) for more details.
 
 #### **Configurable memory access boundary check**
-- **WAMR_CONFIGUABLE_BOUNDS_CHECKS**=1/0, default to disable if not set
+- **WAMR_CONFIGURABLE_BOUNDS_CHECKS**=1/0, default to disable if not set
 > Note: If it is enabled, allow to run `iwasm --disable-bounds-checks` to disable the memory access boundary checks for interpreter mode.
 
 #### **Module instance context APIs**

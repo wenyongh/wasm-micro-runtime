@@ -1995,10 +1995,12 @@ val_type_to_val_kind(uint8 value_type)
             return WASM_F32;
         case VALUE_TYPE_F64:
             return WASM_F64;
+        case VALUE_TYPE_V128:
+            return WASM_V128;
         case VALUE_TYPE_FUNCREF:
             return WASM_FUNCREF;
         case VALUE_TYPE_EXTERNREF:
-            return WASM_ANYREF;
+            return WASM_EXTERNREF;
         default:
             bh_assert(0);
             return 0;
@@ -2301,6 +2303,11 @@ parse_args_to_uint32_array(WASMFuncType *type, wasm_val_t *args,
                 out_argv[p++] = u.parts[1];
                 break;
             }
+            case WASM_V128:
+            {
+                bh_assert(0);
+                break;
+            }
 #if WASM_ENABLE_REF_TYPES != 0
 #if WASM_ENABLE_GC == 0
             case WASM_FUNCREF:
@@ -2311,7 +2318,7 @@ parse_args_to_uint32_array(WASMFuncType *type, wasm_val_t *args,
 #else
             case WASM_FUNCREF:
 #endif
-            case WASM_ANYREF:
+            case WASM_EXTERNREF:
             {
 #if UINTPTR_MAX == UINT32_MAX
                 out_argv[p++] = args[i].of.foreign;
@@ -2382,6 +2389,11 @@ parse_uint32_array_to_results(WASMFuncType *type, uint32 *argv,
                 out_results[i].of.f64 = u.val;
                 break;
             }
+            case VALUE_TYPE_V128:
+            {
+                bh_assert(0);
+                break;
+            }
 #if WASM_ENABLE_REF_TYPES != 0
 #if WASM_ENABLE_GC == 0
             case VALUE_TYPE_FUNCREF:
@@ -2407,7 +2419,7 @@ parse_uint32_array_to_results(WASMFuncType *type, uint32 *argv,
 #endif /* end of WASM_ENABLE_GC == 0 */
             {
 #if UINTPTR_MAX == UINT32_MAX
-                out_results[i].kind = WASM_ANYREF;
+                out_results[i].kind = WASM_EXTERNREF;
                 out_results[i].of.foreign = (uintptr_t)argv[p++];
 #else
                 union {
@@ -2416,7 +2428,7 @@ parse_uint32_array_to_results(WASMFuncType *type, uint32 *argv,
                 } u;
                 u.parts[0] = argv[p++];
                 u.parts[1] = argv[p++];
-                out_results[i].kind = WASM_ANYREF;
+                out_results[i].kind = WASM_EXTERNREF;
                 out_results[i].of.foreign = u.val;
 #endif
                 break;
@@ -2558,6 +2570,9 @@ wasm_runtime_call_wasm_v(WASMExecEnv *exec_env,
                 args[i].kind = WASM_F64;
                 args[i].of.f64 = va_arg(vargs, float64);
                 break;
+            case VALUE_TYPE_V128:
+                bh_assert(0);
+                break;
 #if WASM_ENABLE_GC == 0 && WASM_ENABLE_REF_TYPES != 0
             case VALUE_TYPE_FUNCREF:
             {
@@ -2567,7 +2582,7 @@ wasm_runtime_call_wasm_v(WASMExecEnv *exec_env,
             }
             case VALUE_TYPE_EXTERNREF:
             {
-                args[i].kind = WASM_ANYREF;
+                args[i].kind = WASM_EXTERNREF;
                 args[i].of.foreign = va_arg(vargs, uintptr_t);
                 break;
             }
@@ -4019,10 +4034,11 @@ wasm_func_type_get_param_valkind(WASMFuncType *const func_type,
             return WASM_F32;
         case VALUE_TYPE_F64:
             return WASM_F64;
+        case VALUE_TYPE_V128:
+            return WASM_V128;
         case VALUE_TYPE_FUNCREF:
             return WASM_FUNCREF;
 
-        case VALUE_TYPE_V128:
         case VALUE_TYPE_EXTERNREF:
         case VALUE_TYPE_VOID:
         default:
@@ -4064,6 +4080,7 @@ wasm_func_type_get_result_valkind(WASMFuncType *const func_type,
 
 #if WASM_ENABLE_SIMD != 0
         case VALUE_TYPE_V128:
+            return WASM_V128;
 #endif
 #if WASM_ENABLE_REF_TYPES != 0
         case VALUE_TYPE_EXTERNREF:
@@ -6511,7 +6528,7 @@ argv_to_params(wasm_val_t *out_params, const uint32 *argv,
                 break;
 #if WASM_ENABLE_GC == 0 && WASM_ENABLE_REF_TYPES != 0
             case VALUE_TYPE_EXTERNREF:
-                param->kind = WASM_ANYREF;
+                param->kind = WASM_EXTERNREF;
 
                 if (!wasm_externref_ref2obj(*argv,
                                             (void **)&param->of.foreign)) {

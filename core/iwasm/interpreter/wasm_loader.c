@@ -9,6 +9,7 @@
 #include "wasm.h"
 #include "wasm_opcode.h"
 #include "wasm_runtime.h"
+#include "wasm_loader_common.h"
 #include "../common/wasm_native.h"
 #include "../common/wasm_memory.h"
 #if WASM_ENABLE_GC != 0
@@ -2409,8 +2410,8 @@ wasm_loader_resolve_global(const char *module_name, const char *global_name,
     if (global->type.val_type != type
         || global->type.is_mutable != is_mutable) {
         LOG_DEBUG("%s,%s failed type check(%d, %d), expected(%d, %d)",
-                  module_name, global_name, global->type, global->is_mutable,
-                  type, is_mutable);
+                  module_name, global_name, global->type.val_type,
+                  global->type.is_mutable, type, is_mutable);
         set_error_buf(error_buf, error_buf_size, "incompatible import type");
         return NULL;
     }
@@ -2756,43 +2757,6 @@ check_memory_max_size(bool is_memory64, uint32 init_size, uint32 max_size,
 }
 
 static bool
-check_memory_flag(const uint8 mem_flag, char *error_buf, uint32 error_buf_size)
-{
-    /* Check whether certain features indicated by mem_flag are enabled in
-     * runtime */
-    if (mem_flag > MAX_PAGE_COUNT_FLAG) {
-#if WASM_ENABLE_SHARED_MEMORY == 0
-        if (mem_flag & SHARED_MEMORY_FLAG) {
-            LOG_VERBOSE("shared memory flag was found, please enable shared "
-                        "memory, lib-pthread or lib-wasi-threads");
-            set_error_buf(error_buf, error_buf_size, "invalid limits flags");
-            return false;
-        }
-#endif
-#if WASM_ENABLE_MEMORY64 == 0
-        if (mem_flag & MEMORY64_FLAG) {
-            LOG_VERBOSE("memory64 flag was found, please enable memory64");
-            set_error_buf(error_buf, error_buf_size, "invalid limits flags");
-            return false;
-        }
-#endif
-    }
-
-    if (mem_flag > MAX_PAGE_COUNT_FLAG + SHARED_MEMORY_FLAG + MEMORY64_FLAG) {
-        set_error_buf(error_buf, error_buf_size, "invalid limits flags");
-        return false;
-    }
-    else if ((mem_flag & SHARED_MEMORY_FLAG)
-             && !(mem_flag & MAX_PAGE_COUNT_FLAG)) {
-        set_error_buf(error_buf, error_buf_size,
-                      "shared memory must have maximum");
-        return false;
-    }
-
-    return true;
-}
-
-static bool
 load_memory_import(const uint8 **p_buf, const uint8 *buf_end,
                    WASMModule *parent_module, const char *sub_module_name,
                    const char *memory_name, WASMMemoryImport *memory,
@@ -2824,7 +2788,7 @@ load_memory_import(const uint8 **p_buf, const uint8 *buf_end,
         return false;
     }
 
-    if (!check_memory_flag(mem_flag, error_buf, error_buf_size)) {
+    if (!wasm_memory_check_flags(mem_flag, error_buf, error_buf_size, false)) {
         return false;
     }
 
@@ -2955,7 +2919,8 @@ load_tag_import(const uint8 **p_buf, const uint8 *buf_end,
         goto fail;
     }
 
-    WASMType *declare_tag_type = parent_module->types[declare_type_index];
+    WASMFuncType *declare_tag_type =
+        (WASMFuncType *)parent_module->types[declare_type_index];
 
     /* check, that the type of the declared tag returns void */
     if (declare_tag_type->result_count != 0) {
@@ -3226,7 +3191,8 @@ load_memory(const uint8 **p_buf, const uint8 *buf_end, WASMMemory *memory,
         return false;
     }
 
-    if (!check_memory_flag(memory->flags, error_buf, error_buf_size)) {
+    if (!wasm_memory_check_flags(memory->flags, error_buf, error_buf_size,
+                                 false)) {
         return false;
     }
 
@@ -4841,7 +4807,7 @@ load_tag_section(const uint8 *buf, const uint8 *buf_end, const uint8 *buf_code,
 
             /* get return type (must be 0) */
             /* check, that the type of the referred tag returns void */
-            WASMType *func_type = (WASMType *)module->types[tag_type];
+            WASMFuncType *func_type = (WASMFuncType *)module->types[tag_type];
             if (func_type->result_count != 0) {
                 set_error_buf(error_buf, error_buf_size,
                               "non-empty tag result type");
@@ -11157,7 +11123,7 @@ re_scan:
 
                 /* the tag_type is stored in either the WASMTag (section tags)
                  * or WASMTagImport (import tag) */
-                WASMType *tag_type = NULL;
+                WASMFuncType *tag_type = NULL;
                 if (tag_index < module->import_tag_count) {
                     tag_type = module->import_tags[tag_index].u.tag.tag_type;
                 }
@@ -11180,11 +11146,36 @@ re_scan:
                 /* Check stack values match return types by comparing tag param
                  * types with stack cells */
                 uint8 *frame_ref = loader_ctx->frame_ref;
+#if WASM_ENABLE_GC != 0
+                WASMRefTypeMap *frame_reftype_map =
+                    loader_ctx->frame_reftype_map;
+                uint32 frame_reftype_map_num = loader_ctx->reftype_map_num;
+                param_reftype_maps = tag_type->ref_type_maps;
+                /* For tag_type function, it shouldn't have result_count = 0 */
+                param_reftype_map_count = tag_type->ref_type_map_count;
+                param_count = (int32)tag_type->param_count;
+#endif
+
                 for (int tti = (int32)tag_type->param_count - 1; tti >= 0;
                      tti--) {
+#if WASM_ENABLE_GC != 0
+                    local_type = tag_type->types[tti];
+                    local_idx = tti;
+                    /* Get the wasm_ref_type if the local_type is multibyte
+                     * type */
+                    GET_LOCAL_REFTYPE();
+#endif
+
                     if (!check_stack_top_values(
                             loader_ctx, frame_ref, available_stack_cell,
-                            tag_type->types[tti], error_buf, error_buf_size)) {
+#if WASM_ENABLE_GC != 0
+                            frame_reftype_map, frame_reftype_map_num,
+#endif
+                            tag_type->types[tti],
+#if WASM_ENABLE_GC != 0
+                            &wasm_ref_type,
+#endif
+                            error_buf, error_buf_size)) {
                         snprintf(error_buf, error_buf_size,
                                  "type mismatch: instruction requires [%s] but "
                                  "stack has [%s]",
@@ -11267,7 +11258,7 @@ re_scan:
 
                 /* the tag_type is stored in either the WASMTag (section tags)
                  * or WASMTagImport (import tag) */
-                WASMType *func_type = NULL;
+                WASMFuncType *func_type = NULL;
                 if (tag_index < module->import_tag_count) {
                     func_type = module->import_tags[tag_index].u.tag.tag_type;
                 }
@@ -14762,9 +14753,9 @@ re_scan:
                             goto fail;
                         }
 
-                        read_leb_uint32(p, p_end, mem_offset); /* offset */
+                        read_leb_mem_offset(p, p_end, mem_offset); /* offset */
 
-                        POP_AND_PUSH(VALUE_TYPE_I32, VALUE_TYPE_V128);
+                        POP_AND_PUSH(mem_offset_type, VALUE_TYPE_V128);
 #if WASM_ENABLE_JIT != 0 || WASM_ENABLE_WAMR_COMPILER != 0
                         func->has_memory_operations = true;
 #endif
@@ -14781,10 +14772,10 @@ re_scan:
                             goto fail;
                         }
 
-                        read_leb_uint32(p, p_end, mem_offset); /* offset */
+                        read_leb_mem_offset(p, p_end, mem_offset); /* offset */
 
                         POP_V128();
-                        POP_I32();
+                        POP_MEM_OFFSET();
 #if WASM_ENABLE_JIT != 0 || WASM_ENABLE_WAMR_COMPILER != 0
                         func->has_memory_operations = true;
 #endif
@@ -14999,7 +14990,7 @@ re_scan:
                             goto fail;
                         }
 
-                        read_leb_uint32(p, p_end, mem_offset); /* offset */
+                        read_leb_mem_offset(p, p_end, mem_offset); /* offset */
 
                         CHECK_BUF(p, p_end, 1);
                         lane = read_uint8(p);
@@ -15009,7 +15000,7 @@ re_scan:
                         }
 
                         POP_V128();
-                        POP_I32();
+                        POP_MEM_OFFSET();
                         if (opcode1 < SIMD_v128_store8_lane) {
                             PUSH_V128();
                         }
@@ -15030,9 +15021,9 @@ re_scan:
                             goto fail;
                         }
 
-                        read_leb_uint32(p, p_end, mem_offset); /* offset */
+                        read_leb_mem_offset(p, p_end, mem_offset); /* offset */
 
-                        POP_AND_PUSH(VALUE_TYPE_I32, VALUE_TYPE_V128);
+                        POP_AND_PUSH(mem_offset_type, VALUE_TYPE_V128);
 #if WASM_ENABLE_JIT != 0 || WASM_ENABLE_WAMR_COMPILER != 0
                         func->has_memory_operations = true;
 #endif
