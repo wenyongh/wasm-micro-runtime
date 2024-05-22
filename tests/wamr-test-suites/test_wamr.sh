@@ -14,7 +14,7 @@ function help()
 {
     echo "test_wamr.sh [options]"
     echo "-c clean previous test results, not start test"
-    echo "-s {suite_name} test only one suite (spec|wasi_certification|wamr_compiler)"
+    echo "-s {suite_name} test only one suite (spec|malformed|wasi_certification|wamr_compiler)"
     echo "-m set compile target of iwasm(x86_64|x86_32|armv7|armv7_vfp|thumbv7|thumbv7_vfp|"
     echo "                               riscv32|riscv32_ilp32f|riscv32_ilp32d|riscv64|"
     echo "                               riscv64_lp64f|riscv64_lp64d|aarch64|aarch64_vfp)"
@@ -427,6 +427,8 @@ function compile_reference_interpreter()
 # TODO: with iwasm only
 function spec_test()
 {
+    local RUNNING_MODE="$1"
+
     echo "Now start spec tests"
     touch ${REPORT_DIR}/spec_test_report.txt
 
@@ -499,7 +501,11 @@ function spec_test()
             git apply ../../spec-test-script/simd_ignore_cases.patch || exit 1
         fi
         if [[ ${ENABLE_MULTI_MODULE} == 1 ]]; then
-            git apply ../../spec-test-script/multi_module_aot_ignore_cases.patch || exit 1
+            git apply ../../spec-test-script/multi_module_ignore_cases.patch || exit 1
+
+            if [[ ${RUNNING_MODE} == "aot" ]]; then
+                git apply ../../spec-test-script/multi_module_aot_ignore_cases.patch || exit 1
+            fi
         fi
     fi
 
@@ -856,10 +862,10 @@ function do_execute_in_running_mode()
         fi
     fi
 
-    # FIXME: add "aot" after fix the linking failure
     if [[ ${ENABLE_MULTI_MODULE} -eq 1 ]]; then
         if [[ "${RUNNING_MODE}" != "classic-interp" \
-                && "${RUNNING_MODE}" != "fast-interp" ]]; then
+                && "${RUNNING_MODE}" != "fast-interp" \
+                && "${RUNNING_MODE}" != "aot" ]]; then
             echo "support multi-module in both interp modes"
             return 0
         fi
@@ -1098,7 +1104,7 @@ if [[ $TEST_CASE_ARR ]];then
     trigger || (echo "TEST FAILED"; exit 1)
 else
     # test all suite, ignore polybench and libsodium because of long time cost
-    TEST_CASE_ARR=("spec")
+    TEST_CASE_ARR=("spec" "malformed")
     : '
     if [[ $COLLECT_CODE_COVERAGE == 1 ]];then
         # add polybench if collecting code coverage data
