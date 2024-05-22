@@ -7,7 +7,7 @@
 
 sudo apt update
 
-sudo apt install -y build-essential cmake g++-multilib libgcc-11-dev lib32gcc-11-dev ccache ninja-build ccache
+sudo apt install -y build-essential cmake gcc-multilib g++-multilib libgcc-11-dev lib32gcc-11-dev ccache ninja-build ccache
 
 WAMR_DIR=${PWD}
 
