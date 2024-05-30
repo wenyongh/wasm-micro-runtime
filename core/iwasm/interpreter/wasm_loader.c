@@ -379,7 +379,8 @@ loader_malloc(uint64 size, char *error_buf, uint32 error_buf_size)
 {
     void *mem;
 
-    if (size >= UINT32_MAX || !(mem = wasm_runtime_malloc((uint32)size))) {
+    if (size >= WASM_MEM_ALLOC_MAX_SIZE
+        || !(mem = wasm_runtime_malloc((uint32)size))) {
         set_error_buf(error_buf, error_buf_size, "allocate memory failed");
         return NULL;
     }
@@ -3052,7 +3053,12 @@ load_global_import(const uint8 **p_buf, const uint8 *buf_end,
 
 #if WASM_ENABLE_GC == 0
     CHECK_BUF(p, p_end, 2);
+    /* global type */
     declare_type = read_uint8(p);
+    if (!is_value_type(declare_type)) {
+        set_error_buf(error_buf, error_buf_size, "type mismatch");
+        return false;
+    }
     declare_mutable = read_uint8(p);
 #else
     if (!resolve_value_type(&p, p_end, parent_module, parent_module->type_count,
@@ -4034,7 +4040,12 @@ load_global_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
         for (i = 0; i < global_count; i++, global++) {
 #if WASM_ENABLE_GC == 0
             CHECK_BUF(p, p_end, 2);
+            /* global type */
             global->type.val_type = read_uint8(p);
+            if (!is_value_type(global->type.val_type)) {
+                set_error_buf(error_buf, error_buf_size, "type mismatch");
+                return false;
+            }
             mutable = read_uint8(p);
 #else
             if (!resolve_value_type(&p, p_end, module, module->type_count,
@@ -6403,7 +6414,7 @@ create_sections(const uint8 *buf, uint32 size, WASMSection **p_section_list,
                 char *error_buf, uint32 error_buf_size)
 {
     WASMSection *section_list_end = NULL, *section;
-    const uint8 *p = buf, *p_end = buf + size /*, *section_body*/;
+    const uint8 *p = buf, *p_end = buf + size;
     uint8 section_type, section_index, last_section_index = (uint8)-1;
     uint32 section_size;
 
@@ -7647,7 +7658,6 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
 #if (WASM_ENABLE_WAMR_COMPILER != 0) || (WASM_ENABLE_JIT != 0)
             case WASM_OP_SIMD_PREFIX:
             {
-                /* TODO: memory64 offset type changes */
                 uint32 opcode1;
 
                 read_leb_uint32(p, p_end, opcode1);
@@ -7672,8 +7682,8 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
                     case SIMD_v128_store:
                         /* memarg align */
                         skip_leb_uint32(p, p_end);
-                        /* memarg offset*/
-                        skip_leb_uint32(p, p_end);
+                        /* memarg offset */
+                        skip_leb_mem_offset(p, p_end);
                         break;
 
                     case SIMD_v128_const:
@@ -7712,8 +7722,8 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
                     case SIMD_v128_store64_lane:
                         /* memarg align */
                         skip_leb_uint32(p, p_end);
-                        /* memarg offset*/
-                        skip_leb_uint32(p, p_end);
+                        /* memarg offset */
+                        skip_leb_mem_offset(p, p_end);
                         /* ImmLaneId */
                         CHECK_BUF(p, p_end, 1);
                         p++;
@@ -7723,8 +7733,8 @@ wasm_loader_find_block_addr(WASMExecEnv *exec_env, BlockAddr *block_addr_cache,
                     case SIMD_v128_load64_zero:
                         /* memarg align */
                         skip_leb_uint32(p, p_end);
-                        /* memarg offset*/
-                        skip_leb_uint32(p, p_end);
+                        /* memarg offset */
+                        skip_leb_mem_offset(p, p_end);
                         break;
 
                     default:
