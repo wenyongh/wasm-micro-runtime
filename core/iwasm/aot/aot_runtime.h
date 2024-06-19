@@ -14,10 +14,6 @@
 #include "gc_export.h"
 #endif
 
-#if WASM_ENABLE_WASI_NN != 0
-#include "../libraries/wasi-nn/src/wasi_nn_private.h"
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -108,6 +104,8 @@ typedef struct AOTFunctionInstance {
 typedef struct AOTModuleInstanceExtra {
     DefPointer(const uint32 *, stack_sizes);
     WASMModuleInstanceExtraCommon common;
+    AOTFunctionInstance **functions;
+    uint32 function_count;
 #if WASM_ENABLE_MULTI_MODULE != 0
     bh_list sub_module_inst_list_head;
     bh_list *sub_module_inst_list;
@@ -510,6 +508,17 @@ aot_deinstantiate(AOTModuleInstance *module_inst, bool is_sub_inst);
  */
 AOTFunctionInstance *
 aot_lookup_function(const AOTModuleInstance *module_inst, const char *name);
+
+/**
+ * Get a function in the AOT module instance.
+ *
+ * @param module_inst the module instance
+ * @param func_idx the index of the function
+ *
+ * @return the function instance found
+ */
+AOTFunctionInstance *
+aot_get_function_instance(AOTModuleInstance *module_inst, uint32_t func_idx);
 
 /**
  * Call the given AOT function of a AOT module instance with

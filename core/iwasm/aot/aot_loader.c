@@ -326,14 +326,18 @@ load_string(uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
         /* The string is always terminated with '\0', use it directly.
          * In this case, the file buffer can be referred to after loading.
          */
-        bh_assert(p[str_len - 1] == '\0');
+        if (p[str_len - 1] != '\0')
+            goto fail;
+
         str = (char *)p;
     }
     else {
         /* Load from sections, the file buffer cannot be referred to
            after loading, we must create another string and insert it
            into const string set */
-        bh_assert(p[str_len - 1] == '\0');
+        if (p[str_len - 1] != '\0')
+            goto fail;
+
         if (!(str = aot_const_str_set_insert((uint8 *)p, str_len, module,
 #if (WASM_ENABLE_WORD_ALIGN_READ != 0)
                                              is_vram_word_align,
@@ -568,7 +572,7 @@ get_native_symbol_by_name(const char *name)
 
     sym = get_target_symbol_map(&symnum);
 
-    while (symnum--) {
+    while (symnum && symnum--) {
         if (strcmp(sym->symbol_name, name) == 0) {
             func = sym->symbol_addr;
             break;
@@ -646,6 +650,12 @@ load_native_symbol_section(const uint8 *buf, const uint8 *buf_end,
     uint32 cnt;
     int32 i;
     const char *symbol;
+
+    if (module->native_symbol_list) {
+        set_error_buf(error_buf, error_buf_size,
+                      "duplicated native symbol section");
+        return false;
+    }
 
     read_uint32(p, p_end, cnt);
 
@@ -1320,24 +1330,25 @@ load_import_table_list(const uint8 **p_buf, const uint8 *buf_end,
 
     /* keep sync with aot_emit_table_info() aot_emit_aot_file */
     for (i = 0; i < module->import_table_count; i++, import_table++) {
-        read_uint8(buf, buf_end, import_table->elem_type);
-        read_uint8(buf, buf_end, import_table->table_flags);
-        read_uint8(buf, buf_end, import_table->possible_grow);
+        read_uint8(buf, buf_end, import_table->table_type.elem_type);
+        read_uint8(buf, buf_end, import_table->table_type.flags);
+        read_uint8(buf, buf_end, import_table->table_type.possible_grow);
 #if WASM_ENABLE_GC != 0
-        if (wasm_is_type_multi_byte_type(import_table->elem_type)) {
+        if (wasm_is_type_multi_byte_type(import_table->table_type.elem_type)) {
             read_uint8(buf, buf_end, ref_type.ref_ht_common.nullable);
         }
 #endif
-        read_uint32(buf, buf_end, import_table->table_init_size);
-        read_uint32(buf, buf_end, import_table->table_max_size);
+        read_uint32(buf, buf_end, import_table->table_type.init_size);
+        read_uint32(buf, buf_end, import_table->table_type.max_size);
 #if WASM_ENABLE_GC != 0
-        if (wasm_is_type_multi_byte_type(import_table->elem_type)) {
+        if (wasm_is_type_multi_byte_type(import_table->table_type.elem_type)) {
             read_uint32(buf, buf_end, ref_type.ref_ht_common.heap_type);
 
-            ref_type.ref_type = import_table->elem_type;
+            ref_type.ref_type = import_table->table_type.elem_type;
             /* TODO: check ref_type */
-            if (!(import_table->elem_ref_type = wasm_reftype_set_insert(
-                      module->ref_type_set, &ref_type))) {
+            if (!(import_table->table_type.elem_ref_type =
+                      wasm_reftype_set_insert(module->ref_type_set,
+                                              &ref_type))) {
                 set_error_buf(error_buf, error_buf_size,
                               "insert ref type to hash set failed");
                 return false;
@@ -1373,23 +1384,23 @@ load_table_list(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
 
     /* Create each table data segment */
     for (i = 0; i < module->table_count; i++, table++) {
-        read_uint8(buf, buf_end, table->elem_type);
-        read_uint8(buf, buf_end, table->table_flags);
-        read_uint8(buf, buf_end, table->possible_grow);
+        read_uint8(buf, buf_end, table->table_type.elem_type);
+        read_uint8(buf, buf_end, table->table_type.flags);
+        read_uint8(buf, buf_end, table->table_type.possible_grow);
 #if WASM_ENABLE_GC != 0
-        if (wasm_is_type_multi_byte_type(table->elem_type)) {
+        if (wasm_is_type_multi_byte_type(table->table_type.elem_type)) {
             read_uint8(buf, buf_end, ref_type.ref_ht_common.nullable);
         }
 #endif
-        read_uint32(buf, buf_end, table->table_init_size);
-        read_uint32(buf, buf_end, table->table_max_size);
+        read_uint32(buf, buf_end, table->table_type.init_size);
+        read_uint32(buf, buf_end, table->table_type.max_size);
 #if WASM_ENABLE_GC != 0
-        if (wasm_is_type_multi_byte_type(table->elem_type)) {
+        if (wasm_is_type_multi_byte_type(table->table_type.elem_type)) {
             read_uint32(buf, buf_end, ref_type.ref_ht_common.heap_type);
 
-            ref_type.ref_type = table->elem_type;
+            ref_type.ref_type = table->table_type.elem_type;
             /* TODO: check ref_type */
-            if (!(table->elem_ref_type = wasm_reftype_set_insert(
+            if (!(table->table_type.elem_ref_type = wasm_reftype_set_insert(
                       module->ref_type_set, &ref_type))) {
                 set_error_buf(error_buf, error_buf_size,
                               "insert ref type to hash set failed");
@@ -1679,6 +1690,9 @@ load_types(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
                             func_type->param_count + func_type->result_count);
 
             func_type->ref_type_map_count = ref_type_map_count;
+
+            if (!is_valid_func_type(func_type))
+                goto fail;
 
             param_cell_num = wasm_get_cell_num(func_type->types, param_count);
             ret_cell_num =
@@ -1983,6 +1997,9 @@ load_types(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
         func_types[i]->param_count = (uint16)param_count;
         func_types[i]->result_count = (uint16)result_count;
         read_byte_array(buf, buf_end, func_types[i]->types, (uint32)size1);
+
+        if (!is_valid_func_type(func_types[i]))
+            goto fail;
 
         param_cell_num = wasm_get_cell_num(func_types[i]->types, param_count);
         ret_cell_num =
