@@ -591,15 +591,17 @@ str2uint64(const char *buf, uint64 *p_res);
 
 #if WASM_ENABLE_MULTI_MODULE != 0
 static void *
-aot_loader_resolve_function(const char *module_name, const char *function_name,
+aot_loader_resolve_function(const AOTModule *module, const char *function_name,
                             const AOTFuncType *expected_function_type,
-                            char *error_buf, uint32 error_buf_size)
+                            char *error_buf, uint32 error_buf_size);
+
+static void *
+aot_loader_resolve_function_ex(const char *module_name,
+                               const char *function_name,
+                               const AOTFuncType *expected_function_type,
+                               char *error_buf, uint32 error_buf_size)
 {
     WASMModuleCommon *module_reg;
-    void *function = NULL;
-    AOTExport *export = NULL;
-    AOTModule *module = NULL;
-    AOTFuncType *target_function_type = NULL;
 
     module_reg = wasm_runtime_find_module_registered(module_name);
     if (!module_reg || module_reg->module_type != Wasm_Module_AoT) {
@@ -608,10 +610,23 @@ aot_loader_resolve_function(const char *module_name, const char *function_name,
         set_error_buf(error_buf, error_buf_size, "unknown import");
         return NULL;
     }
+    return aot_loader_resolve_function((AOTModule *)module_reg, function_name,
+                                       expected_function_type, error_buf,
+                                       error_buf_size);
+}
 
-    module = (AOTModule *)module_reg;
-    export = loader_find_export(module_reg, module_name, function_name,
-                                EXPORT_KIND_FUNC, error_buf, error_buf_size);
+static void *
+aot_loader_resolve_function(const AOTModule *module, const char *function_name,
+                            const AOTFuncType *expected_function_type,
+                            char *error_buf, uint32 error_buf_size)
+{
+    void *function = NULL;
+    AOTExport *export = NULL;
+    AOTFuncType *target_function_type = NULL;
+
+    export = loader_find_export((WASMModuleCommon *)module, module->name,
+                                function_name, EXPORT_KIND_FUNC, error_buf,
+                                error_buf_size);
     if (!export) {
         return NULL;
     }
@@ -633,7 +648,7 @@ aot_loader_resolve_function(const char *module_name, const char *function_name,
     if (!wasm_type_equal((WASMType *)expected_function_type,
                          (WASMType *)target_function_type, module->types,
                          module->type_count)) {
-        LOG_DEBUG("%s.%s failed the type check", module_name, function_name);
+        LOG_DEBUG("%s.%s failed the type check", module->name, function_name);
         set_error_buf(error_buf, error_buf_size, "incompatible import type");
         return NULL;
     }
@@ -660,15 +675,18 @@ load_native_symbol_section(const uint8 *buf, const uint8 *buf_end,
     read_uint32(p, p_end, cnt);
 
     if (cnt > 0) {
-        module->native_symbol_list = wasm_runtime_malloc(cnt * sizeof(void *));
+        uint64 list_size = cnt * (uint64)sizeof(void *);
+        module->native_symbol_list =
+            loader_malloc(list_size, error_buf, error_buf_size);
         if (module->native_symbol_list == NULL) {
-            set_error_buf(error_buf, error_buf_size,
-                          "malloc native symbol list failed");
             goto fail;
         }
 
         for (i = cnt - 1; i >= 0; i--) {
             read_string(p, p_end, symbol);
+            if (!strlen(symbol))
+                continue;
+
             if (!strncmp(symbol, "f32#", 4) || !strncmp(symbol, "i32#", 4)) {
                 uint32 u32;
                 /* Resolve the raw int bits of f32 const */
@@ -2079,6 +2097,10 @@ load_import_globals(const uint8 **p_buf, const uint8 *buf_end,
         read_string(buf, buf_end, import_globals[i].module_name);
         read_string(buf, buf_end, import_globals[i].global_name);
 
+        if (!is_valid_value_type(import_globals[i].type.val_type)) {
+            return false;
+        }
+
 #if WASM_ENABLE_LIBC_BUILTIN != 0
         if (wasm_native_lookup_libc_builtin_global(
                 import_globals[i].module_name, import_globals[i].global_name,
@@ -2167,6 +2189,9 @@ load_globals(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
         read_uint8(buf, buf_end, globals[i].type.val_type);
         read_uint8(buf, buf_end, globals[i].type.is_mutable);
 
+        if (!is_valid_value_type(globals[i].type.val_type))
+            return false;
+
         buf = align_ptr(buf, 4);
 
         if (!load_init_expr(&buf, buf_end, module, &globals[i].init_expr,
@@ -2254,17 +2279,24 @@ load_import_funcs(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
             &import_funcs[i].signature, &import_funcs[i].attachment,
             &import_funcs[i].call_conv_raw);
         if (!linked_func) {
+            sub_module = NULL;
             if (!wasm_runtime_is_built_in_module(module_name)) {
                 sub_module = (AOTModule *)wasm_runtime_load_depended_module(
                     (WASMModuleCommon *)module, module_name, error_buf,
                     error_buf_size);
                 if (!sub_module) {
+                    LOG_ERROR("failed to load sub module: %s", error_buf);
                     return false;
                 }
             }
-            linked_func = aot_loader_resolve_function(
-                module_name, field_name, declare_func_type, error_buf,
-                error_buf_size);
+            if (!sub_module)
+                linked_func = aot_loader_resolve_function_ex(
+                    module_name, field_name, declare_func_type, error_buf,
+                    error_buf_size);
+            else
+                linked_func = aot_loader_resolve_function(
+                    sub_module, field_name, declare_func_type, error_buf,
+                    error_buf_size);
         }
         import_funcs[i].func_ptr_linked = linked_func;
         import_funcs[i].func_type = declare_func_type;
