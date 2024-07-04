@@ -3627,6 +3627,10 @@ load_function_section(const uint8 *buf, const uint8 *buf_end,
         return false;
     }
 
+    if (is_indices_overflow(module->import_function_count, func_count,
+                            error_buf, error_buf_size))
+        return false;
+
     if (func_count) {
         module->function_count = func_count;
         total_size = sizeof(WASMFunction *) * (uint64)func_count;
@@ -4022,6 +4026,9 @@ load_global_section(const uint8 *buf, const uint8 *buf_end, WASMModule *module,
 #endif
 
     read_leb_uint32(p, p_end, global_count);
+    if (is_indices_overflow(module->import_global_count, global_count,
+                            error_buf, error_buf_size))
+        return false;
 
     module->global_count = 0;
     if (global_count) {
@@ -4921,6 +4928,10 @@ load_tag_section(const uint8 *buf, const uint8 *buf_end, const uint8 *buf_code,
 
     /* get tag count */
     read_leb_uint32(p, p_end, section_tag_count);
+    if (is_indices_overflow(module->import_tag_count, section_tag_count,
+                            error_buf, error_buf_size))
+        return false;
+
     module->tag_count = section_tag_count;
 
     if (section_tag_count) {
@@ -9304,6 +9315,8 @@ wasm_loader_push_frame_offset(WASMLoaderContext *ctx, uint8 type,
                               bool disable_emit, int16 operand_offset,
                               char *error_buf, uint32 error_buf_size)
 {
+    uint32 cell_num_to_push, i;
+
     if (type == VALUE_TYPE_VOID)
         return true;
 
@@ -9330,21 +9343,24 @@ wasm_loader_push_frame_offset(WASMLoaderContext *ctx, uint8 type,
     if (is_32bit_type(type))
         return true;
 
-    if (ctx->p_code_compiled == NULL) {
-        if (!check_offset_push(ctx, error_buf, error_buf_size))
-            return false;
-    }
+    cell_num_to_push = wasm_value_type_cell_num(type) - 1;
+    for (i = 0; i < cell_num_to_push; i++) {
+        if (ctx->p_code_compiled == NULL) {
+            if (!check_offset_push(ctx, error_buf, error_buf_size))
+                return false;
+        }
 
-    ctx->frame_offset++;
-    if (!disable_emit) {
-        ctx->dynamic_offset++;
-        if (ctx->dynamic_offset > ctx->max_dynamic_offset) {
-            ctx->max_dynamic_offset = ctx->dynamic_offset;
-            if (ctx->max_dynamic_offset >= INT16_MAX) {
-                goto fail;
+        ctx->frame_offset++;
+        if (!disable_emit) {
+            ctx->dynamic_offset++;
+            if (ctx->dynamic_offset > ctx->max_dynamic_offset) {
+                ctx->max_dynamic_offset = ctx->dynamic_offset;
+                if (ctx->max_dynamic_offset >= INT16_MAX)
+                    goto fail;
             }
         }
     }
+
     return true;
 
 fail:
