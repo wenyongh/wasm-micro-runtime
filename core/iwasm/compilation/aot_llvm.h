@@ -397,6 +397,9 @@ typedef struct AOTCompContext {
     /* Boundary Check */
     bool enable_bound_check;
 
+    /* Boundary Check by calling runtime function*/
+    bool enable_runtime_bound_check;
+
     /* Native stack boundary Check */
     bool enable_stack_bound_check;
 

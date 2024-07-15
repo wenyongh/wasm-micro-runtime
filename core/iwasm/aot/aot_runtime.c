@@ -3109,6 +3109,12 @@ aot_check_app_addr_and_convert(AOTModuleInstance *module_inst, bool is_str,
     return ret;
 }
 
+uint8 *
+aot_bounds_check(AOTModuleInstance *module_inst, size_t offset, uint32 bytes)
+{
+    return NULL;
+}
+
 void *
 aot_memmove(void *dest, const void *src, size_t n)
 {

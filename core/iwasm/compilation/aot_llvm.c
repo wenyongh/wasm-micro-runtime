@@ -2621,6 +2621,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
 
 #ifndef OS_ENABLE_HW_BOUND_CHECK
         comp_ctx->enable_bound_check = true;
+        comp_ctx->enable_runtime_bound_check =
+            option->enable_runtime_bound_check;
         /* Always enable stack boundary check if `bounds-checks`
            is enabled */
         comp_ctx->enable_stack_bound_check = true;
@@ -2954,6 +2956,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
             /* Set by user */
             comp_ctx->enable_bound_check =
                 (option->bounds_checks == 1) ? true : false;
+            comp_ctx->enable_runtime_bound_check =
+                option->enable_runtime_bound_check;
         }
         else {
             /* Unset by user, use default value */
@@ -2963,6 +2967,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
             }
             else {
                 comp_ctx->enable_bound_check = true;
+                comp_ctx->enable_runtime_bound_check =
+                    option->enable_runtime_bound_check;
             }
         }
 

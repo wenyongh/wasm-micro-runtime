@@ -139,6 +139,7 @@ print_help()
     printf("                              if the option is set:\n");
     printf("                                (1) it is always enabled when `--bounds-checks` is enabled,\n");
     printf("                                (2) else it is enabled/disabled according to the option value\n");
+    printf("  --runtime-bounds-checks   Enable bounds check by call runtime function:\n");
     printf("  --stack-usage=<file>      Generate a stack-usage file.\n");
     printf("                              Similarly to `clang -fstack-usage`.\n");
     printf("  --format=<format>         Specifies the format of the output file\n");
@@ -544,6 +545,9 @@ main(int argc, char *argv[])
 #endif
         else if (!strcmp(argv[0], "--invoke-c-api-import")) {
             option.quick_invoke_c_api_import = true;
+        }
+        else if (!strcmp(argv[0], "--runtime-bounds-checks")) {
+            option.enable_runtime_bound_check = true;
         }
 #if WASM_ENABLE_LINUX_PERF != 0
         else if (!strcmp(argv[0], "--enable-linux-perf")) {

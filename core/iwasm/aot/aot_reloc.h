@@ -184,6 +184,7 @@ typedef struct {
 #define REG_COMMON_SYMBOLS                \
     REG_SYM(aot_set_exception_with_id),   \
     REG_SYM(aot_invoke_native),           \
+    REG_SYM(aot_bounds_check),            \
     REG_SYM(aot_call_indirect),           \
     REG_SYM(aot_enlarge_memory),          \
     REG_SYM(aot_set_exception),           \

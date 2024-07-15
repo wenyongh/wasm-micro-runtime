@@ -94,6 +94,37 @@ get_memory_check_bound(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
 static LLVMValueRef
 get_memory_curr_page_count(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx);
 
+static LLVMValueRef
+aot_call_runtime_bounds_check(AOTCompContext *comp_ctx,
+                              AOTFuncContext *func_ctx, LLVMValueRef offset,
+                              uint32 bytes)
+{
+    LLVMValueRef param_values[3], value, maddr, func;
+    LLVMTypeRef param_types[3], ret_type = 0, func_type = 0, func_ptr_type = 0;
+    uint32 argc = 3;
+
+    param_types[0] = INT8_PTR_TYPE;
+    param_types[1] = SIZE_T_TYPE;
+    param_types[2] = I32_TYPE;
+    ret_type = INT8_PTR_TYPE;
+
+    param_values[0] = func_ctx->aot_inst;
+    param_values[1] = offset;
+    param_values[2] = I32_CONST(bytes);
+
+    GET_AOT_FUNCTION(aot_bounds_check, argc);
+
+    if (!(maddr = LLVMBuildCall2(comp_ctx->builder, func_type, func,
+                                 param_values, argc, "maddr"))) {
+        aot_set_last_error("llvm build call failed.");
+        goto fail;
+    }
+
+    return maddr;
+fail:
+    return NULL;
+}
+
 LLVMValueRef
 aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
                           mem_offset_t offset, uint32 bytes, bool enable_segue,
@@ -104,7 +135,8 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     LLVMValueRef addr, maddr, offset1, cmp1, cmp2, cmp;
     LLVMValueRef mem_base_addr, mem_check_bound;
     LLVMBasicBlockRef block_curr = LLVMGetInsertBlock(comp_ctx->builder);
-    LLVMBasicBlockRef check_succ;
+    LLVMBasicBlockRef check_succ, bound_check_with_api = NULL, check_end = NULL;
+    LLVMValueRef maddr_phi = NULL;
     AOTValue *aot_value_top;
     uint32 local_idx_of_aot_value = 0;
     uint64 const_value;
@@ -198,7 +230,7 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
              * has the natural alignment. for platforms using mmap, it can
              * be even larger. for now, use a conservative value.
              */
-            const int max_align = 8;
+            const unsigned int max_align = 8;
             int shift = ffs((int)(unsigned int)mem_offset);
             if (shift == 0) {
                 *alignp = max_align;
@@ -269,10 +301,25 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
                        MEMORY64_COND_VALUE(I64_ZERO, I32_ZERO), cmp, "is_zero");
             ADD_BASIC_BLOCK(check_succ, "check_mem_size_succ");
             LLVMMoveBasicBlockAfter(check_succ, block_curr);
-            if (!aot_emit_exception(comp_ctx, func_ctx,
-                                    EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, true, cmp,
-                                    check_succ)) {
-                goto fail;
+
+            if (!comp_ctx->enable_runtime_bound_check) {
+                if (!aot_emit_exception(comp_ctx, func_ctx,
+                                        EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, true,
+                                        cmp, check_succ)) {
+                    goto fail;
+                }
+            }
+            else {
+                ADD_BASIC_BLOCK(bound_check_with_api, "bound_check_with_api");
+                ADD_BASIC_BLOCK(check_end, "check_end");
+                LLVMMoveBasicBlockAfter(bound_check_with_api, check_succ);
+                LLVMMoveBasicBlockAfter(check_end, bound_check_with_api);
+
+                if (!LLVMBuildCondBr(comp_ctx->builder, cmp,
+                                     bound_check_with_api, check_succ)) {
+                    aot_set_last_error("llvm build condbr failed");
+                    goto fail;
+                }
             }
 
             SET_BUILD_POS(check_succ);
@@ -298,10 +345,26 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         ADD_BASIC_BLOCK(check_succ, "check_succ");
         LLVMMoveBasicBlockAfter(check_succ, block_curr);
 
-        if (!aot_emit_exception(comp_ctx, func_ctx,
-                                EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, true, cmp,
-                                check_succ)) {
-            goto fail;
+        if (!comp_ctx->enable_runtime_bound_check) {
+            if (!aot_emit_exception(comp_ctx, func_ctx,
+                                    EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, true, cmp,
+                                    check_succ)) {
+                goto fail;
+            }
+        }
+        else {
+            if (!bound_check_with_api) {
+                ADD_BASIC_BLOCK(bound_check_with_api, "bound_check_with_api");
+                ADD_BASIC_BLOCK(check_end, "check_end");
+            }
+            LLVMMoveBasicBlockAfter(bound_check_with_api, check_succ);
+            LLVMMoveBasicBlockAfter(check_end, bound_check_with_api);
+
+            if (!LLVMBuildCondBr(comp_ctx->builder, cmp, bound_check_with_api,
+                                 check_succ)) {
+                aot_set_last_error("llvm build condbr failed");
+                goto fail;
+            }
         }
 
         SET_BUILD_POS(check_succ);
@@ -337,7 +400,44 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
             goto fail;
         }
     }
-    return maddr;
+
+    if (!(comp_ctx->enable_runtime_bound_check && bound_check_with_api))
+        return maddr;
+    else {
+        if (!LLVMBuildBr(comp_ctx->builder, check_end)) {
+            aot_set_last_error("llvm build br failed.");
+            goto fail;
+        }
+
+        SET_BUILD_POS(check_end);
+        if (!(maddr_phi = LLVMBuildPhi(comp_ctx->builder, INT8_PTR_TYPE,
+                                       "maddr_phi"))) {
+            aot_set_last_error("llvm build phi failed.");
+            goto fail;
+        }
+        LLVMAddIncoming(maddr_phi, &maddr, &check_succ, 1);
+
+        SET_BUILD_POS(bound_check_with_api);
+        if (!(maddr = aot_call_runtime_bounds_check(comp_ctx, func_ctx, offset1,
+                                                    bytes))) {
+            goto fail;
+        }
+        if (!(cmp = LLVMBuildIsNull(comp_ctx->builder, maddr, "is_null"))) {
+            aot_set_last_error("llvm build isnull failed.");
+            goto fail;
+        }
+        if (!aot_emit_exception(comp_ctx, func_ctx,
+                                EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, true, cmp,
+                                check_end)) {
+            goto fail;
+        }
+        LLVMAddIncoming(maddr_phi, &maddr, &bound_check_with_api, 1);
+
+        SET_BUILD_POS(check_end);
+
+        return maddr_phi;
+    }
+
 fail:
     return NULL;
 }
