@@ -5003,8 +5003,10 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                         if (offset + bytes > seg_len)
                             goto out_of_bounds;
 
-                        bh_memcpy_s(maddr, (uint32)(linear_mem_size - addr),
-                                    data + offset, (uint32)bytes);
+                        if (data) {
+                            bh_memcpy_s(maddr, (uint32)(linear_mem_size - addr),
+                                        data + offset, (uint32)bytes);
+                        }
                         break;
                     }
                     case WASM_OP_DATA_DROP:

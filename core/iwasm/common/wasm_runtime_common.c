@@ -5645,9 +5645,6 @@ static V128FuncPtr invokeNative_V128 = (V128FuncPtr)(uintptr_t)invokeNative;
  * things. Ignore a function that does some low-level magic. (e.g. walking
  * through the thread's stack bypassing the frame boundaries)
  */
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((no_sanitize_address))
-#endif
 bool
 wasm_runtime_invoke_native(WASMExecEnv *exec_env, void *func_ptr,
                            const WASMFuncType *func_type, const char *signature,
@@ -5821,9 +5818,9 @@ wasm_runtime_invoke_native(WASMExecEnv *exec_env, void *func_ptr,
 #endif
 #endif
                 if (n_ints < MAX_REG_INTS)
-                    ints[n_ints++] = *(uint64 *)argv_src;
+                    ints[n_ints++] = GET_I64_FROM_ADDR(argv_src);
                 else
-                    stacks[n_stacks++] = *(uint64 *)argv_src;
+                    stacks[n_stacks++] = GET_I64_FROM_ADDR(argv_src);
                 argv_src += 2;
                 break;
             case VALUE_TYPE_F32:
@@ -5888,9 +5885,9 @@ wasm_runtime_invoke_native(WASMExecEnv *exec_env, void *func_ptr,
     /* Save extra result values' address to argv1 */
     for (i = 0; i < ext_ret_count; i++) {
         if (n_ints < MAX_REG_INTS)
-            ints[n_ints++] = *(uint64 *)argv_src;
+            ints[n_ints++] = GET_I64_FROM_ADDR(argv_src);
         else
-            stacks[n_stacks++] = *(uint64 *)argv_src;
+            stacks[n_stacks++] = GET_I64_FROM_ADDR(argv_src);
         argv_src += 2;
     }
 

@@ -2242,6 +2242,10 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
     /* Size of module inst, memory instances and global data */
     total_size = (uint64)module_inst_struct_size + module_inst_mem_inst_size
                  + module->global_data_size;
+#if UINT64_MAX == UINTPTR_MAX && WASM_ENABLE_JIT == 0 \
+    && WASM_ENABLE_FAST_JIT == 0
+    total_size = align_uint64(total_size, 8);
+#endif
 
     /* Calculate the size of table data */
     for (i = 0; i < module->import_table_count; i++) {
@@ -2376,6 +2380,11 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
     module_inst->global_data_size = module->global_data_size;
     first_table = (WASMTableInstance *)(module_inst->global_data
                                         + module->global_data_size);
+#if UINT64_MAX == UINTPTR_MAX && WASM_ENABLE_JIT == 0 \
+    && WASM_ENABLE_FAST_JIT == 0
+    first_table = (WASMTableInstance *)(uintptr_t)align_uint64(
+        (uint64)(uintptr_t)first_table, 8);
+#endif
 
     module_inst->memory_count =
         module->import_memory_count + module->memory_count;

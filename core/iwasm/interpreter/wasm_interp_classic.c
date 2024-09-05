@@ -5670,8 +5670,10 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                         if (offset + bytes > seg_len)
                             goto out_of_bounds;
 
-                        bh_memcpy_s(maddr, (uint32)(linear_mem_size - addr),
-                                    data + offset, (uint32)bytes);
+                        if (data) {
+                            bh_memcpy_s(maddr, (uint32)(linear_mem_size - addr),
+                                        data + offset, (uint32)bytes);
+                        }
                         break;
                     }
                     case WASM_OP_DATA_DROP:
@@ -6637,8 +6639,14 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                 frame_lp + cur_func->param_cell_num + cur_func->local_cell_num;
             frame->sp_boundary = frame->sp_bottom + max_stack_cell_num;
 
+#if UINT64_MAX != UINTPTR_MAX
             frame_csp = frame->csp_bottom =
                 (WASMBranchBlock *)frame->sp_boundary;
+#else
+        frame_csp = frame->csp_bottom =
+            (WASMBranchBlock *)(uintptr_t)align_uint64(
+                (uint64)(uintptr_t)frame->sp_boundary, 8);
+#endif
             frame->csp_boundary =
                 frame->csp_bottom + cur_wasm_func->max_block_num;
 
