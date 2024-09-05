@@ -2242,8 +2242,11 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
     /* Size of module inst, memory instances and global data */
     total_size = (uint64)module_inst_struct_size + module_inst_mem_inst_size
                  + module->global_data_size;
-#if UINT64_MAX == UINTPTR_MAX && WASM_ENABLE_JIT == 0 \
+#if UINT64_MAX == UINTPTR_MAX                                            \
+    && WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0 WASM_ENABLE_JIT == 0 \
     && WASM_ENABLE_FAST_JIT == 0
+    /* Make table instance size 8-byte aligned on 64-bit target
+       if CPU doesn't support unaligned address access */
     total_size = align_uint64(total_size, 8);
 #endif
 
@@ -2380,8 +2383,11 @@ wasm_instantiate(WASMModule *module, WASMModuleInstance *parent,
     module_inst->global_data_size = module->global_data_size;
     first_table = (WASMTableInstance *)(module_inst->global_data
                                         + module->global_data_size);
-#if UINT64_MAX == UINTPTR_MAX && WASM_ENABLE_JIT == 0 \
+#if UINT64_MAX == UINTPTR_MAX                                            \
+    && WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0 WASM_ENABLE_JIT == 0 \
     && WASM_ENABLE_FAST_JIT == 0
+    /* Make table instance size 8-byte aligned on 64-bit target
+       if CPU doesn't support unaligned address access */
     first_table = (WASMTableInstance *)(uintptr_t)align_uint64(
         (uint64)(uintptr_t)first_table, 8);
 #endif

@@ -6610,6 +6610,11 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
             cell_num_of_local_stack = cur_func->param_cell_num
                                       + cur_func->local_cell_num
                                       + max_stack_cell_num;
+#if UINT64_MAX == UINTPTR_MAX && WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0
+            /* Make frame csp 8-byte aligned on 64-bit target
+               if CPU doesn't support unaligned address access */
+            cell_num_of_local_stack = align_uint(cell_num_of_local_stack, 2);
+#endif
             all_cell_num = cell_num_of_local_stack
                            + cur_wasm_func->max_block_num
                                  * (uint32)sizeof(WASMBranchBlock) / 4;
@@ -6639,16 +6644,19 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                 frame_lp + cur_func->param_cell_num + cur_func->local_cell_num;
             frame->sp_boundary = frame->sp_bottom + max_stack_cell_num;
 
-#if UINT64_MAX != UINTPTR_MAX
+            /* clang-format off */
+#if UINT64_MAX == UINTPTR_MAX && WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0
+            /* Make frame csp 8-byte aligned on 64-bit target
+               if CPU doesn't support unaligned address access */
             frame_csp = frame->csp_bottom =
-                (WASMBranchBlock *)frame->sp_boundary;
+                (WASMBranchBlock *)(uintptr_t)align_uint64(
+                    (uint64)(uintptr_t)frame->sp_boundary, 8);
 #else
-        frame_csp = frame->csp_bottom =
-            (WASMBranchBlock *)(uintptr_t)align_uint64(
-                (uint64)(uintptr_t)frame->sp_boundary, 8);
+            frame_csp = frame->csp_bottom = (WASMBranchBlock *)frame->sp_boundary;
 #endif
             frame->csp_boundary =
                 frame->csp_bottom + cur_wasm_func->max_block_num;
+            /* clang-format on */
 
 #if WASM_ENABLE_GC != 0
             /* frame->sp and frame->ip are used during GC root set enumeration,
