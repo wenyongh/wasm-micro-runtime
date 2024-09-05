@@ -2790,6 +2790,15 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
                 bh_assert(vendor_sys);
                 bh_memcpy_s(default_arch, sizeof(default_arch), default_triple,
                             (uint32)(vendor_sys - default_triple));
+                /**
+                 * On Mac M[1-9]+ LLVM will report arm64 as the
+                 * architecture, for the purposes of wamr this is the
+                 * same as aarch64v8 so we'll normalize it here.
+                 */
+                if (!strcmp(default_arch, "arm64")) {
+                    bh_strcpy_s(default_arch, sizeof(default_arch),
+                                "aarch64v8");
+                }
                 arch1 = default_arch;
 
                 LLVMDisposeMessage(default_triple);
@@ -2960,12 +2969,12 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
                                     sizeof(comp_ctx->target_arch));
 
         if (option->bounds_checks == 1 || option->bounds_checks == 0) {
-            /* Set by user */
+            /* Set by the user */
             comp_ctx->enable_bound_check =
                 (option->bounds_checks == 1) ? true : false;
         }
         else {
-            /* Unset by user, use default value */
+            /* Unset by the user, use the default value */
             if (strstr(comp_ctx->target_arch, "64")
                 && !option->is_sgx_platform) {
                 comp_ctx->enable_bound_check = false;
@@ -2975,16 +2984,16 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
             }
         }
 
-        if (comp_ctx->enable_bound_check) {
-            /* Always enable stack boundary check if `bounds-checks`
-               is enabled */
-            comp_ctx->enable_stack_bound_check = true;
-        }
-        else {
-            /* When `bounds-checks` is disabled, we set stack boundary
-               check status according to the input option */
+        if (option->stack_bounds_checks == 1
+            || option->stack_bounds_checks == 0) {
+            /* Set by the user */
             comp_ctx->enable_stack_bound_check =
                 (option->stack_bounds_checks == 1) ? true : false;
+        }
+        else {
+            /* Unset by the user, use the default value, it will be the same
+             * value as the bound check */
+            comp_ctx->enable_stack_bound_check = comp_ctx->enable_bound_check;
         }
 
         if ((comp_ctx->enable_stack_bound_check
