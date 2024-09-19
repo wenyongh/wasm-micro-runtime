@@ -26,6 +26,13 @@ get_tbl_inst_offset(const AOTCompContext *comp_ctx,
                ? comp_ctx->comp_data->global_data_size_64bit
                : comp_ctx->comp_data->global_data_size_32bit);
 
+    /* Make table instance 8-byte aligned on 64-bit target
+       in case CPU doesn't support unaligned address access.
+       Note: only apply it for jit mode. Don't change it for
+       aot mode for backward compatibility. */
+    if (comp_ctx->is_jit_mode && comp_ctx->pointer_size == 8)
+        offset = align_uint64(offset, 8);
+
     while (i < tbl_idx && i < comp_ctx->comp_data->import_table_count) {
         offset += offsetof(AOTTableInstance, elems);
         /* avoid loading from current AOTTableInstance */

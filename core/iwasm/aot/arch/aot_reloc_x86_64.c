@@ -83,7 +83,7 @@ init_plt_table(uint8 *plt)
         /* mov symbol_addr, rax */
         *p++ = 0x48;
         *p++ = 0xB8;
-        *(uint64 *)p = (uint64)(uintptr_t)target_sym_map[i].symbol_addr;
+        bh_set_uint64(p, (uint64)(uintptr_t)target_sym_map[i].symbol_addr);
         p += sizeof(uint64);
         /* jmp rax */
         *p++ = 0xFF;
@@ -122,9 +122,11 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
             intptr_t value;
 
             CHECK_RELOC_OFFSET(sizeof(void *));
-            value = *(intptr_t *)(target_section_addr + (uint32)reloc_offset);
-            *(uintptr_t *)(target_section_addr + reloc_offset) =
-                (uintptr_t)symbol_addr + reloc_addend + value; /* S + A */
+            value = (intptr_t)bh_get_uintptr_t(target_section_addr
+                                               + (uint32)reloc_offset);
+            bh_set_uintptr_t(target_section_addr + reloc_offset,
+                             (uintptr_t)symbol_addr + reloc_addend
+                                 + value); /* S + A */
             break;
         }
 #if defined(BH_PLATFORM_WINDOWS)
@@ -134,7 +136,8 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
             uintptr_t target_addr;
 
             CHECK_RELOC_OFFSET(sizeof(void *));
-            value = *(int32 *)(target_section_addr + (uint32)reloc_offset);
+            value = (int32)bh_get_uint32(target_section_addr
+                                         + (uint32)reloc_offset);
             target_addr = (uintptr_t)symbol_addr + reloc_addend + value;
             if ((int32)target_addr != target_addr) {
                 set_error_buf(error_buf, error_buf_size,
@@ -145,7 +148,8 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
                 return false;
             }
 
-            *(int32 *)(target_section_addr + reloc_offset) = (int32)target_addr;
+            bh_set_uint32(target_section_addr + reloc_offset,
+                          (int32)target_addr);
             break;
         }
 #endif
@@ -167,7 +171,8 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
                 return false;
             }
 
-            *(int32 *)(target_section_addr + reloc_offset) = (int32)target_addr;
+            bh_set_uint32(target_section_addr + reloc_offset,
+                          (int32)target_addr);
             break;
         }
         case R_X86_64_PC64:
@@ -177,7 +182,8 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
                  - (uintptr_t)(target_section_addr + reloc_offset));
 
             CHECK_RELOC_OFFSET(sizeof(int64));
-            *(int64 *)(target_section_addr + reloc_offset) = (int64)target_addr;
+            bh_set_uint64(target_section_addr + reloc_offset,
+                          (int64)target_addr);
             break;
         }
         case R_X86_64_32:
@@ -203,7 +209,8 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
                 return false;
             }
 
-            *(int32 *)(target_section_addr + reloc_offset) = (int32)target_addr;
+            bh_set_uint32(target_section_addr + reloc_offset,
+                          (int32)target_addr);
             break;
         }
 #endif
@@ -248,7 +255,8 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
                     "Try using wamrc with --size-level=1 or 0 option.");
                 return false;
             }
-            *(int32 *)(target_section_addr + reloc_offset) = (int32)target_addr;
+            bh_set_uint32(target_section_addr + reloc_offset,
+                          (int32)target_addr);
             break;
         }
 

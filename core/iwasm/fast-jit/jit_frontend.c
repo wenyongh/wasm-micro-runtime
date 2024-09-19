@@ -44,7 +44,11 @@ get_global_base_offset(const WASMModule *module)
 static uint32
 get_first_table_inst_offset(const WASMModule *module)
 {
-    return get_global_base_offset(module) + module->global_data_size;
+    uint32 offset = get_global_base_offset(module) + module->global_data_size;
+#if UINTPTR_MAX == UINT64_MAX
+    offset = align_uint(offset, 8);
+#endif
+    return offset;
 }
 
 uint32

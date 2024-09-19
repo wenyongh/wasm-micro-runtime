@@ -99,13 +99,9 @@ wasm_interp_interp_frame_size(unsigned all_cell_num)
     frame_size = (uint32)offsetof(WASMInterpFrame, operand) + all_cell_num * 4;
 #endif
 
-#if UINT64_MAX == UINTPTR_MAX && WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0
-    /* Make frame size 8-byte aligned on 64-bit target
-       if CPU doesn't support unaligned address access */
-    return align_uint(frame_size, 8);
-#else
-    return align_uint(frame_size, 4);
-#endif
+    /* Make frame size pointer size aligned on 64-bit target
+       in case CPU doesn't support unaligned address access */
+    return align_uint(frame_size, sizeof(uintptr_t));
 }
 
 void

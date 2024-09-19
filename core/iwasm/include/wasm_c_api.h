@@ -166,6 +166,8 @@ typedef enum {
     Alloc_With_System_Allocator,
 } mem_alloc_type_t;
 
+typedef enum { Alloc_For_Runtime, Alloc_For_LinearMemory } mem_alloc_usage_t;
+
 /* Memory allocator option */
 typedef union MemAllocOption {
     struct {
@@ -440,6 +442,8 @@ typedef struct wasm_val_t {
     int64_t i64;
     float32_t f32;
     float64_t f64;
+    /* represent a foreign object, aka externref in .wat */
+    uintptr_t foreign;
     struct wasm_ref_t* ref;
   } of;
 } wasm_val_t;
