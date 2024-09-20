@@ -148,22 +148,13 @@ static void
 wasm_munmap_linear_memory(void *mapped_mem, uint64 commit_size,
                           uint64 map_size);
 
-static void
-set_error_buf(char *error_buf, uint32 error_buf_size, const char *string)
-{
-    if (error_buf != NULL) {
-        snprintf(error_buf, error_buf_size,
-                 "Operation of shared heap failed: %s", string);
-    }
-}
-
 static void *
-runtime_malloc(uint64 size, char *error_buf, uint32 error_buf_size)
+runtime_malloc(uint64 size)
 {
     void *mem;
 
     if (size >= UINT32_MAX || !(mem = wasm_runtime_malloc((uint32)size))) {
-        set_error_buf(error_buf, error_buf_size, "allocate memory failed");
+        LOG_WARNING("Allocate memory failed");
         return NULL;
     }
 
@@ -172,8 +163,7 @@ runtime_malloc(uint64 size, char *error_buf, uint32 error_buf_size)
 }
 
 WASMSharedHeap *
-wasm_runtime_create_shared_heap(SharedHeapInitArgs *init_args, char *error_buf,
-                                uint32 error_buf_size)
+wasm_runtime_create_shared_heap(SharedHeapInitArgs *init_args)
 {
     uint64 heap_struct_size = sizeof(WASMSharedHeap);
     uint32 size = init_args->size;
@@ -183,13 +173,12 @@ wasm_runtime_create_shared_heap(SharedHeapInitArgs *init_args, char *error_buf,
         goto fail1;
     }
 
-    if (!(heap = runtime_malloc(heap_struct_size, error_buf, error_buf_size))) {
+    if (!(heap = runtime_malloc(heap_struct_size))) {
         goto fail1;
     }
 
     if (!(heap->heap_handle =
-              runtime_malloc(mem_allocator_get_heap_struct_size(), error_buf,
-                             error_buf_size))) {
+              runtime_malloc(mem_allocator_get_heap_struct_size()))) {
         goto fail2;
     }
 
@@ -199,7 +188,7 @@ wasm_runtime_create_shared_heap(SharedHeapInitArgs *init_args, char *error_buf,
     heap->start_off_mem32 = UINT32_MAX - heap->size + 1;
 
     if (size > APP_HEAP_SIZE_MAX || size < APP_HEAP_SIZE_MIN) {
-        set_error_buf(error_buf, error_buf_size, "invalid size of shared heap");
+        LOG_WARNING("Invalid size of shared heap");
         goto fail3;
     }
 
@@ -208,7 +197,7 @@ wasm_runtime_create_shared_heap(SharedHeapInitArgs *init_args, char *error_buf,
     }
     if (!mem_allocator_create_with_struct_and_pool(
             heap->heap_handle, heap_struct_size, heap->base_addr, size)) {
-        set_error_buf(error_buf, error_buf_size, "init share heap failed");
+        LOG_WARNING("init share heap failed");
         goto fail4;
     }
 
@@ -1113,11 +1102,9 @@ wasm_get_default_memory(WASMModuleInstance *module_inst)
 WASMMemoryInstance *
 wasm_get_memory_with_idx(WASMModuleInstance *module_inst, uint32 index)
 {
-    bh_assert(index < module_inst->memory_count);
-    if (module_inst->memories)
-        return module_inst->memories[index];
-    else
+    if ((index >= module_inst->memory_count) || !module_inst->memories)
         return NULL;
+    return module_inst->memories[index];
 }
 
 void
@@ -1196,20 +1183,13 @@ wasm_mmap_linear_memory(uint64_t map_size, uint64 commit_size)
     return wasm_mremap_linear_memory(NULL, 0, map_size, commit_size);
 }
 
-bool
-wasm_enlarge_memory_internal(WASMModuleInstance *module, uint32 inc_page_count,
-                             uint32 memidx)
+static bool
+wasm_enlarge_memory_internal(WASMModuleInstanceCommon *module,
+                             WASMMemoryInstance *memory, uint32 inc_page_count)
 {
-#if WASM_ENABLE_MULTI_MEMORY != 0
-    WASMMemoryInstance *memory = wasm_get_memory_with_idx(module, memidx);
-#else
-    WASMMemoryInstance *memory = wasm_get_default_memory(module);
-#endif
-
 #if WASM_ENABLE_SHARED_HEAP != 0
     WASMSharedHeap *shared_heap;
 #endif
-
     uint8 *memory_data_old, *memory_data_new, *heap_data_old;
     uint32 num_bytes_per_page, heap_size;
     uint32 cur_page_count, max_page_count, total_page_count;
@@ -1242,8 +1222,23 @@ wasm_enlarge_memory_internal(WASMModuleInstance *module, uint32 inc_page_count,
     total_page_count = inc_page_count + cur_page_count;
     total_size_new = num_bytes_per_page * (uint64)total_page_count;
 
+    if (inc_page_count <= 0)
+        /* No need to enlarge memory */
+        return true;
+
+    if (total_page_count < cur_page_count) { /* integer overflow */
+        ret = false;
+        goto return_func;
+    }
+
+    if (total_page_count > max_page_count) {
+        failure_reason = MAX_SIZE_REACHED;
+        ret = false;
+        goto return_func;
+    }
+
 #if WASM_ENABLE_SHARED_HEAP != 0
-    shared_heap = get_shared_heap((WASMModuleInstanceCommon *)module);
+    shared_heap = get_shared_heap(module);
     if (shared_heap) {
         if (memory->is_memory64
             && total_size_new > shared_heap->start_off_mem64) {
@@ -1259,20 +1254,6 @@ wasm_enlarge_memory_internal(WASMModuleInstance *module, uint32 inc_page_count,
         }
     }
 #endif
-    if (inc_page_count <= 0)
-        /* No need to enlarge memory */
-        return true;
-
-    if (total_page_count < cur_page_count) { /* integer overflow */
-        ret = false;
-        goto return_func;
-    }
-
-    if (total_page_count > max_page_count) {
-        failure_reason = MAX_SIZE_REACHED;
-        ret = false;
-        goto return_func;
-    }
 
     bh_assert(total_size_new
               <= GET_MAX_LINEAR_MEMORY_SIZE(memory->is_memory64));
@@ -1375,7 +1356,7 @@ wasm_enlarge_memory_internal(WASMModuleInstance *module, uint32 inc_page_count,
     wasm_runtime_set_mem_bound_check_bytes(memory, total_size_new);
 
 return_func:
-    if (!ret && enlarge_memory_error_cb) {
+    if (!ret && module && enlarge_memory_error_cb) {
         WASMExecEnv *exec_env = NULL;
 
 #if WASM_ENABLE_INTERP != 0
@@ -1388,8 +1369,7 @@ return_func:
 #endif
 
         enlarge_memory_error_cb(inc_page_count, total_size_old, 0,
-                                failure_reason,
-                                (WASMModuleInstanceCommon *)module, exec_env,
+                                failure_reason, module, exec_env,
                                 enlarge_memory_error_user_data);
     }
 
@@ -1433,15 +1413,16 @@ wasm_enlarge_memory(WASMModuleInstance *module, uint32 inc_page_count)
 {
     bool ret = false;
 
+    if (module->memory_count > 0) {
 #if WASM_ENABLE_SHARED_MEMORY != 0
-    if (module->memory_count > 0)
         shared_memory_lock(module->memories[0]);
 #endif
-    ret = wasm_enlarge_memory_internal(module, inc_page_count, 0);
+        ret = wasm_enlarge_memory_internal((WASMModuleInstanceCommon *)module,
+                                           module->memories[0], inc_page_count);
 #if WASM_ENABLE_SHARED_MEMORY != 0
-    if (module->memory_count > 0)
         shared_memory_unlock(module->memories[0]);
 #endif
+    }
 
     return ret;
 }
@@ -1452,15 +1433,117 @@ wasm_enlarge_memory_with_idx(WASMModuleInstance *module, uint32 inc_page_count,
 {
     bool ret = false;
 
+    if (memidx < module->memory_count) {
 #if WASM_ENABLE_SHARED_MEMORY != 0
-    if (memidx < module->memory_count)
         shared_memory_lock(module->memories[memidx]);
 #endif
-    ret = wasm_enlarge_memory_internal(module, inc_page_count, memidx);
+        ret = wasm_enlarge_memory_internal((WASMModuleInstanceCommon *)module,
+                                           module->memories[memidx],
+                                           inc_page_count);
 #if WASM_ENABLE_SHARED_MEMORY != 0
-    if (memidx < module->memory_count)
         shared_memory_unlock(module->memories[memidx]);
 #endif
+    }
+
+    return ret;
+}
+
+WASMMemoryInstance *
+wasm_runtime_lookup_memory(WASMModuleInstanceCommon *module_inst,
+                           const char *name)
+{
+#if WASM_ENABLE_INTERP != 0
+    if (module_inst->module_type == Wasm_Module_Bytecode)
+        return wasm_lookup_memory((WASMModuleInstance *)module_inst, name);
+#endif
+
+#if WASM_ENABLE_AOT != 0
+    if (module_inst->module_type == Wasm_Module_AoT)
+        return aot_lookup_memory((WASMModuleInstance *)module_inst, name);
+#endif
+
+    return NULL;
+}
+
+WASMMemoryInstance *
+wasm_runtime_get_default_memory(WASMModuleInstanceCommon *module_inst)
+{
+#if WASM_ENABLE_INTERP != 0
+    if (module_inst->module_type == Wasm_Module_Bytecode)
+        return wasm_get_default_memory((WASMModuleInstance *)module_inst);
+#endif
+
+#if WASM_ENABLE_AOT != 0
+    if (module_inst->module_type == Wasm_Module_AoT)
+        return aot_get_default_memory((AOTModuleInstance *)module_inst);
+#endif
+
+    return NULL;
+}
+
+WASMMemoryInstance *
+wasm_runtime_get_memory(WASMModuleInstanceCommon *module_inst, uint32 index)
+{
+#if WASM_ENABLE_INTERP != 0
+    if (module_inst->module_type == Wasm_Module_Bytecode)
+        return wasm_get_memory_with_idx((WASMModuleInstance *)module_inst,
+                                        index);
+#endif
+
+#if WASM_ENABLE_AOT != 0
+    if (module_inst->module_type == Wasm_Module_AoT)
+        return aot_get_memory_with_index((AOTModuleInstance *)module_inst,
+                                         index);
+#endif
+
+    return NULL;
+}
+
+uint64
+wasm_memory_get_cur_page_count(WASMMemoryInstance *memory)
+{
+    return memory->cur_page_count;
+}
+
+uint64
+wasm_memory_get_max_page_count(WASMMemoryInstance *memory)
+{
+    return memory->max_page_count;
+}
+
+uint64
+wasm_memory_get_bytes_per_page(WASMMemoryInstance *memory)
+{
+    return memory->num_bytes_per_page;
+}
+
+bool
+wasm_memory_get_shared(WASMMemoryInstance *memory)
+{
+    return memory->is_shared_memory;
+}
+
+void *
+wasm_memory_get_base_address(WASMMemoryInstance *memory)
+{
+    return memory->memory_data;
+}
+
+bool
+wasm_memory_enlarge(WASMMemoryInstance *memory, uint64 inc_page_count)
+{
+    bool ret = false;
+
+    if (memory) {
+#if WASM_ENABLE_SHARED_MEMORY != 0
+        shared_memory_lock(memory);
+#endif
+        ret =
+            wasm_enlarge_memory_internal(NULL, memory, (uint32)inc_page_count);
+#if WASM_ENABLE_SHARED_MEMORY != 0
+        shared_memory_unlock(memory);
+#endif
+    }
 
     return ret;
 }

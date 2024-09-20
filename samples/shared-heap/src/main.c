@@ -230,8 +230,7 @@ main(int argc, char **argv)
     /* create shared heap */
     memset(&heap_init_args, 0, sizeof(heap_init_args));
     heap_init_args.size = 65536;
-    shared_heap = wasm_runtime_create_shared_heap(&heap_init_args, error_buf,
-                                                  sizeof(error_buf));
+    shared_heap = wasm_runtime_create_shared_heap(&heap_init_args);
     if (!shared_heap) {
         printf("Create shared heap failed. error: %s\n", error_buf);
         goto fail;

@@ -1484,6 +1484,22 @@ wasm_runtime_load_ex(uint8 *buf, uint32 size, const LoadArgs *args,
                                           error_buf_size);
 }
 
+WASM_RUNTIME_API_EXTERN bool
+wasm_runtime_resolve_symbols(WASMModuleCommon *module)
+{
+#if WASM_ENABLE_INTERP != 0
+    if (module->module_type == Wasm_Module_Bytecode) {
+        return wasm_resolve_symbols((WASMModule *)module);
+    }
+#endif
+#if WASM_ENABLE_AOT != 0
+    if (module->module_type == Wasm_Module_AoT) {
+        return aot_resolve_symbols((AOTModule *)module);
+    }
+#endif
+    return false;
+}
+
 WASMModuleCommon *
 wasm_runtime_load(uint8 *buf, uint32 size, char *error_buf,
                   uint32 error_buf_size)
@@ -4499,7 +4515,8 @@ wasm_runtime_invoke_native_raw(WASMExecEnv *exec_env, void *func_ptr,
 {
     WASMModuleInstanceCommon *module = wasm_runtime_get_module_inst(exec_env);
 #if WASM_ENABLE_MEMORY64 != 0
-    WASMMemoryInstance *memory = wasm_runtime_get_default_memory(module);
+    WASMMemoryInstance *memory =
+        wasm_get_default_memory((WASMModuleInstance *)module);
     bool is_memory64 = memory ? memory->is_memory64 : false;
 #endif
     typedef void (*NativeRawFuncPtr)(WASMExecEnv *, uint64 *);
@@ -5658,7 +5675,8 @@ wasm_runtime_invoke_native(WASMExecEnv *exec_env, void *func_ptr,
 {
     WASMModuleInstanceCommon *module = wasm_runtime_get_module_inst(exec_env);
 #if WASM_ENABLE_MEMORY64 != 0
-    WASMMemoryInstance *memory = wasm_runtime_get_default_memory(module);
+    WASMMemoryInstance *memory =
+        wasm_get_default_memory((WASMModuleInstance *)module);
     bool is_memory64 = memory ? memory->is_memory64 : false;
 #endif
     uint64 argv_buf[32] = { 0 }, *argv1 = argv_buf, *ints, *stacks, size,
