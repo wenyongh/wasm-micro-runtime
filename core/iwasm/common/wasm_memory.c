@@ -179,18 +179,25 @@ wasm_runtime_create_shared_heap(SharedHeapInitArgs *init_args, char *error_buf,
     uint32 size = init_args->size;
     WASMSharedHeap *heap;
 
+    if (size == 0) {
+        goto fail1;
+    }
+
     if (!(heap = runtime_malloc(heap_struct_size, error_buf, error_buf_size))) {
         goto fail1;
     }
+
     if (!(heap->heap_handle =
               runtime_malloc(mem_allocator_get_heap_struct_size(), error_buf,
                              error_buf_size))) {
         goto fail2;
     }
+
+    size = align_uint(size, os_getpagesize());
+    heap->size = size;
     heap->start_off_mem64 = UINT64_MAX - heap->size + 1;
     heap->start_off_mem32 = UINT32_MAX - heap->size + 1;
 
-    size = align_uint(size, os_getpagesize());
     if (size > APP_HEAP_SIZE_MAX || size < APP_HEAP_SIZE_MIN) {
         set_error_buf(error_buf, error_buf_size, "invalid size of shared heap");
         goto fail3;
@@ -365,20 +372,25 @@ wasm_runtime_shared_heap_malloc(WASMModuleInstanceCommon *module_inst,
     WASMMemoryInstance *memory =
         wasm_get_default_memory((WASMModuleInstance *)module_inst);
     WASMSharedHeap *shared_heap = get_shared_heap(module_inst);
+    void *native_addr = NULL;
 
     if (!memory || !shared_heap)
         return 0;
 
-    *p_native_addr = mem_allocator_malloc(shared_heap->heap_handle, size);
-    if (!*p_native_addr)
+    native_addr = mem_allocator_malloc(shared_heap->heap_handle, size);
+    if (!native_addr)
         return 0;
+
+    if (p_native_addr) {
+        *p_native_addr = native_addr;
+    }
 
     if (memory->is_memory64)
         return shared_heap->start_off_mem64
-               + ((uint8 *)*p_native_addr - shared_heap->base_addr);
+               + ((uint8 *)native_addr - shared_heap->base_addr);
     else
         return shared_heap->start_off_mem32
-               + ((uint8 *)*p_native_addr - shared_heap->base_addr);
+               + ((uint8 *)native_addr - shared_heap->base_addr);
 }
 
 void

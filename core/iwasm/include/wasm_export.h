@@ -323,11 +323,9 @@ typedef enum {
     WASM_LOG_LEVEL_VERBOSE = 4
 } log_level_t;
 
-#if WASM_ENABLE_SHARED_HEAP != 0
 typedef struct SharedHeapInitArgs {
-    uint32 size;
+    uint32_t size;
 } SharedHeapInitArgs;
-#endif
 
 /**
  * Initialize the WASM runtime environment, and also initialize
@@ -2119,7 +2117,6 @@ wasm_runtime_detect_native_stack_overflow_size(wasm_exec_env_t exec_env,
 WASM_RUNTIME_API_EXTERN bool
 wasm_runtime_is_underlying_binary_freeable(const wasm_module_t module);
 
-#if WASM_ENABLE_SHARED_HEAP != 0
 /**
  * Create a shared heap
  * @param init_args the initialization arguments
@@ -2128,7 +2125,7 @@ wasm_runtime_is_underlying_binary_freeable(const wasm_module_t module);
  */
 WASM_RUNTIME_API_EXTERN wasm_shared_heap_t
 wasm_runtime_create_shared_heap(SharedHeapInitArgs *init_args, char *error_buf,
-                                uint32 error_buf_size);
+                                uint32_t error_buf_size);
 
 /**
  * Attach a shared heap to a module instance
@@ -2152,8 +2149,8 @@ wasm_runtime_detach_shared_heap(wasm_module_inst_t module_inst);
  * @param size required memory size
  * @param p_native_addr native address of allocated memory
  */
-WASM_RUNTIME_API_EXTERN uint64
-wasm_runtime_shared_heap_malloc(wasm_module_inst_t module_inst, uint64 size,
+WASM_RUNTIME_API_EXTERN uint64_t
+wasm_runtime_shared_heap_malloc(wasm_module_inst_t module_inst, uint64_t size,
                                 void **p_native_addr);
 
 /**
@@ -2162,8 +2159,7 @@ wasm_runtime_shared_heap_malloc(wasm_module_inst_t module_inst, uint64 size,
  * @param ptr the offset in wasm app
  */
 WASM_RUNTIME_API_EXTERN void
-wasm_runtime_shared_heap_free(wasm_module_inst_t module_inst, uint64 ptr);
-#endif
+wasm_runtime_shared_heap_free(wasm_module_inst_t module_inst, uint64_t ptr);
 
 #ifdef __cplusplus
 }
