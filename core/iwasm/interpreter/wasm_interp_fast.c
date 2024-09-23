@@ -258,6 +258,10 @@ local_copysign(double x, double y)
     return ux.f;
 }
 
+#ifdef LOAD_PTR
+#undef LOAD_PTR
+#endif
+
 #if WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS != 0
 #define LOAD_U32_WITH_2U16S(addr) (*(uint32 *)(addr))
 #define LOAD_PTR(addr) (*(void **)(addr))

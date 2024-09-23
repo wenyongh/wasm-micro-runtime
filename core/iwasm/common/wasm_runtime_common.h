@@ -52,6 +52,7 @@ extern "C" {
 
 /* For STORE opcodes */
 #define STORE_I64 PUT_I64_TO_ADDR
+
 static inline void
 STORE_U32(void *addr, uint32_t value)
 {
@@ -76,10 +77,11 @@ STORE_U8(void *addr, uint8_t value)
 #define LOAD_I16(addr) (*(int16 *)(addr))
 #define LOAD_U16(addr) (*(uint16 *)(addr))
 
-#define STORE_PTR(addr, ptr)          \
-    do {                              \
-        *(void **)addr = (void *)ptr; \
+#define STORE_PTR(addr, ptr)              \
+    do {                                  \
+        *(void **)(addr) = (void *)(ptr); \
     } while (0)
+#define LOAD_PTR(addr) (*(void **)(addr))
 
 #else /* WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS != 0 */
 
@@ -239,6 +241,7 @@ STORE_U16(void *addr, uint16_t value)
     ((uint8_t *)(addr))[0] = u.u8[0];
     ((uint8_t *)(addr))[1] = u.u8[1];
 }
+
 /* For LOAD opcodes */
 static inline int64
 LOAD_I64(void *addr)
@@ -347,9 +350,11 @@ LOAD_I16(void *addr)
 #define LOAD_U16(addr) ((uint16)LOAD_I16(addr))
 
 #if UINTPTR_MAX == UINT32_MAX
-#define STORE_PTR(addr, ptr) STORE_U32(addr, (uintptr_t)ptr)
+#define STORE_PTR(addr, ptr) STORE_U32(addr, (uintptr_t)(ptr))
+#define LOAD_PTR(addr) (void *)(uintptr_t) LOAD_U32(addr)
 #elif UINTPTR_MAX == UINT64_MAX
-#define STORE_PTR(addr, ptr) STORE_I64(addr, (uintptr_t)ptr)
+#define STORE_PTR(addr, ptr) STORE_I64(addr, (uintptr_t)(ptr))
+#define LOAD_PTR(addr) (void *)(uintptr_t) LOAD_I64(addr)
 #endif
 
 #endif /* WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS != 0 */
