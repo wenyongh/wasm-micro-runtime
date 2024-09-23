@@ -147,7 +147,7 @@ apply_relocation(AOTModule *module, uint8 *target_section_addr,
                 return false;
             }
 
-            STORE_I32(target_section_addr + reloc_offset, (int32)target_addr);
+            STORE_U32(target_section_addr + reloc_offset, (uint32)target_addr);
             break;
         }
 #endif
