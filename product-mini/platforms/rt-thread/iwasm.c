@@ -168,12 +168,20 @@ static char **
 alloc_argv_for_exec_func(wasm_module_inst_t module_inst, const char *func_name,
                          uint32 argc, char **argv)
 {
-    char **app_argv1 = argv;
+    char **app_argv1 = argv, buf[128];
     wasm_function_inst_t func_inst =
         wasm_runtime_lookup_function(module_inst, func_name);
-    uint32 ret_cell_num = wasm_func_get_result_cell_num(func_inst, module_inst);
-    uint32 app_argv_size = (uint32)sizeof(char *) * argc;
-    uint32 total_ret_size = (uint32)sizeof(uint32) * ret_cell_num;
+    uint32 ret_cell_num, app_argv_size, total_ret_size;
+
+    if (!func_inst) {
+        snprintf(buf, sizeof(buf), "lookup function %s failed", func_name);
+        wasm_runtime_set_exception(module_inst, buf);
+        return NULL;
+    }
+
+    ret_cell_num = wasm_func_get_result_cell_num(func_inst, module_inst);
+    app_argv_size = (uint32)sizeof(char *) * argc;
+    total_ret_size = (uint32)sizeof(uint32) * ret_cell_num;
 
     if (total_ret_size > app_argv_size) {
         /* allocate enough memory to store the return values */
@@ -181,7 +189,9 @@ alloc_argv_for_exec_func(wasm_module_inst_t module_inst, const char *func_name,
             wasm_runtime_set_exception(module_inst, "allocate memory failed");
             return NULL;
         }
-        bh_memcpy_s(app_argv1, total_ret_size, argv, app_argv_size);
+        memset(app_argv1, 0, total_ret_size);
+        if (app_argv_size > 0)
+            bh_memcpy_s(app_argv1, total_ret_size, argv, app_argv_size);
     }
 
     return app_argv1;
