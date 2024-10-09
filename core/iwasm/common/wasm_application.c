@@ -883,6 +883,12 @@ execute_func(WASMModuleInstanceCommon *module_inst, const char *name,
     }
 #endif
 
+    /* copy the return values */
+    if (argv && type->ret_cell_num > 0) {
+        uint32 size_to_copy = (uint32)sizeof(uint32) * type->ret_cell_num;
+        bh_memcpy_s(argv, size_to_copy, argv1, size_to_copy);
+    }
+
     wasm_runtime_free(argv1);
     return true;
 

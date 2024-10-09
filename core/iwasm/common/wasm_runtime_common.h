@@ -644,6 +644,16 @@ wasm_func_get_result_types(WASMFunctionInstanceCommon *const func_inst,
                            wasm_valkind_t *result_types);
 
 /* See wasm_export.h for description */
+uint32
+wasm_func_get_param_cell_num(WASMFunctionInstanceCommon *const func_inst,
+                             WASMModuleInstanceCommon *const module_inst);
+
+/* See wasm_export.h for description */
+uint32
+wasm_func_get_result_cell_num(WASMFunctionInstanceCommon *const func_inst,
+                              WASMModuleInstanceCommon *const module_inst);
+
+/* See wasm_export.h for description */
 WASM_RUNTIME_API_EXTERN WASMExecEnv *
 wasm_runtime_create_exec_env(WASMModuleInstanceCommon *module_inst,
                              uint32 stack_size);

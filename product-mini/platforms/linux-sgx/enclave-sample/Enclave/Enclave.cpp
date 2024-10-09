@@ -496,8 +496,29 @@ handle_cmd_exec_app_func(uint64 *args, int32 argc)
         app_argv[i] = (char *)(uintptr_t)args[i];
     }
 
-    wasm_application_execute_func(module_inst, func_name, app_argc, app_argv);
+    char **app_argv1 = app_argv;
+    wasm_function_inst_t func_inst =
+        wasm_runtime_lookup_function(module_inst, func_name);
+    uint32 ret_cell_num = wasm_func_get_result_cell_num(func_inst, module_inst);
 
+    total_size = sizeof(uint32) * ret_cell_num;
+
+    if (total_size > sizeof(char *) * app_argc) {
+        /* allocate enough memory to store the return values */
+        if (!(app_argv1 = (char **)wasm_runtime_malloc(total_size))) {
+            wasm_runtime_set_exception(module_inst, "allocate memory failed");
+            goto fail;
+        }
+        bh_memcpy_s(app_argv1, total_size, app_argv,
+                    (uint32)sizeof(char *) * app_argc);
+    }
+
+    wasm_application_execute_func(module_inst, func_name, app_argc, app_argv1);
+
+    if (app_argv1 != app_argv)
+        wasm_runtime_free(app_argv1);
+
+fail:
     wasm_runtime_free(app_argv);
 }
 

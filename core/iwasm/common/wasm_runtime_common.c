@@ -2338,6 +2338,26 @@ wasm_func_get_result_types(WASMFunctionInstanceCommon *const func_inst,
     }
 }
 
+uint32
+wasm_func_get_param_cell_num(WASMFunctionInstanceCommon *const func_inst,
+                             WASMModuleInstanceCommon *const module_inst)
+{
+    WASMFuncType *type =
+        wasm_runtime_get_function_type(func_inst, module_inst->module_type);
+    bh_assert(type);
+    return type->param_cell_num;
+}
+
+uint32
+wasm_func_get_result_cell_num(WASMFunctionInstanceCommon *const func_inst,
+                              WASMModuleInstanceCommon *const module_inst)
+{
+    WASMFuncType *type =
+        wasm_runtime_get_function_type(func_inst, module_inst->module_type);
+    bh_assert(type);
+    return type->ret_cell_num;
+}
+
 #if WASM_ENABLE_GC == 0 && WASM_ENABLE_REF_TYPES != 0
 /* (uintptr_t)externref -> (uint32)index */
 /*   argv               ->   *ret_argv */

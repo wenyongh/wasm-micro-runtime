@@ -121,11 +121,43 @@ app_instance_main(wasm_module_inst_t module_inst)
     return exception;
 }
 
+static char **
+alloc_argv_for_exec_func(wasm_module_inst_t module_inst, const char *func_name,
+                         uint32 argc, char **argv)
+{
+    char **app_argv1 = argv;
+    wasm_function_inst_t func_inst =
+        wasm_runtime_lookup_function(module_inst, func_name);
+    uint32 ret_cell_num = wasm_func_get_result_cell_num(func_inst, module_inst);
+    uint32 app_argv_size = (uint32)sizeof(char *) * argc;
+    uint32 total_ret_size = (uint32)sizeof(uint32) * ret_cell_num;
+
+    if (total_ret_size > app_argv_size) {
+        /* allocate enough memory to store the return values */
+        if (!(app_argv1 = wasm_runtime_malloc(total_ret_size))) {
+            wasm_runtime_set_exception(module_inst, "allocate memory failed");
+            return NULL;
+        }
+        bh_memcpy_s(app_argv1, total_ret_size, argv, app_argv_size);
+    }
+
+    return app_argv1;
+}
+
 static const void *
 app_instance_func(wasm_module_inst_t module_inst, const char *func_name)
 {
-    wasm_application_execute_func(module_inst, func_name, app_argc - 1,
-                                  app_argv + 1);
+    char **app_argv1 = alloc_argv_for_exec_func(module_inst, func_name,
+                                                app_argc - 1, app_argv + 1);
+
+    if (!wasm_runtime_get_exception(module_inst)) {
+        wasm_application_execute_func(module_inst, func_name, app_argc - 1,
+                                      app_argv1);
+
+        if (app_argv1 != app_argv + 1)
+            wasm_runtime_free(app_argv1);
+    }
+
     /* The result of wasm function or exception info was output inside
        wasm_application_execute_func(), here we don't output them again. */
     return wasm_runtime_get_exception(module_inst);
@@ -202,8 +234,16 @@ app_instance_repl(wasm_module_inst_t module_inst)
         }
         if (app_argc != 0) {
             const char *exception;
-            wasm_application_execute_func(module_inst, app_argv[0],
-                                          app_argc - 1, app_argv + 1);
+            char **app_argv1 = alloc_argv_for_exec_func(
+                module_inst, app_argv[0], app_argc - 1, app_argv + 1);
+
+            if (!wasm_runtime_get_exception(module_inst)) {
+                wasm_application_execute_func(module_inst, app_argv[0],
+                                              app_argc - 1, app_argv + 1);
+                if (app_argv1 != app_argv + 1)
+                    wasm_runtime_free(app_argv1);
+            }
+
             if ((exception = wasm_runtime_get_exception(module_inst)))
                 printf("%s\n", exception);
         }

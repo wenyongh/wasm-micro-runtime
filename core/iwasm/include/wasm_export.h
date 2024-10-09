@@ -835,6 +835,30 @@ wasm_func_get_result_types(const wasm_function_inst_t func_inst,
                            wasm_valkind_t *result_types);
 
 /**
+ * Get parameter cell number of the function instance
+ *
+ * @param func_inst the function instance
+ * @param module_inst the module instance the function instance belongs to
+ *
+ * @return the parameter cell number
+ */
+WASM_RUNTIME_API_EXTERN uint32_t
+wasm_func_get_param_cell_num(const wasm_function_inst_t func_inst,
+                             const wasm_module_inst_t module_inst);
+
+/**
+ * Get result cell number of the function instance
+ *
+ * @param func_inst the function instance
+ * @param module_inst the module instance the function instance belongs to
+ *
+ * @return the result cell number
+ */
+WASM_RUNTIME_API_EXTERN uint32_t
+wasm_func_get_result_cell_num(const wasm_function_inst_t func_inst,
+                              const wasm_module_inst_t module_inst);
+
+/**
  * Create execution environment for a WASM module instance.
  *
  * @param module_inst the module instance
@@ -1159,15 +1183,18 @@ wasm_application_execute_main(wasm_module_inst_t module_inst, int32_t argc,
                               char *argv[]);
 
 /**
- * Find the specified function in argv[0] from a WASM module instance
- * and execute that function.
+ * Find the specified function from a WASM module instance and execute
+ * that function.
  *
  * @param module_inst the WASM module instance
  * @param name the name of the function to execute.
  *  to indicate the module name via: $module_name$function_name
  *  or just a function name: function_name
  * @param argc the number of arguments
- * @param argv the arguments array
+ * @param argv the arguments array. If the function method has return value,
+ *   the first (or first two in case 64-bit return value) element of array
+ *   (uint32 *)argv stores the return value of the called WASM function after
+ *   this function returns.
  *
  * @return true if the specified function is called, false otherwise and
  *   exception will be thrown, the caller can call wasm_runtime_get_exception
