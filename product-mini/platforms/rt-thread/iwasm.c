@@ -194,7 +194,7 @@ app_instance_func(wasm_module_inst_t module_inst, const char *func_name,
     char **app_argv1 = alloc_argv_for_exec_func(module_inst, func_name,
                                                 app_argc - 1, app_argv + 1);
 
-    if (!wasm_runtime_get_exception(module_inst)) {
+    if (app_argv1) {
         wasm_application_execute_func(module_inst, func_name, app_argc - 1,
                                       app_argv1);
 
