@@ -984,6 +984,50 @@ init_comp_frame(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     return true;
 }
 
+bool
+call_print_func_idx(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+                    LLVMValueRef func_idx)
+{
+    LLVMTypeRef param_types[1], func_type;
+    LLVMValueRef param_values[1], func;
+    char *func_name = "print_func";
+
+    param_types[0] = I32_TYPE;
+    param_values[0] = func_idx;
+
+    func_type = LLVMFunctionType(VOID_TYPE, param_types, 1, false);
+    if (!(func = LLVMGetNamedFunction(func_ctx->module, func_name))
+        && !(func = LLVMAddFunction(func_ctx->module, func_name, func_type))) {
+        aot_set_last_error("add LLVM function failed.");
+        return false;
+    }
+
+    LLVMBuildCall2(comp_ctx->builder, func_type, func, param_values, 1, "");
+    return true;
+}
+
+bool
+call_print_opcode(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+                  LLVMValueRef opcode)
+{
+    LLVMTypeRef param_types[1], func_type;
+    LLVMValueRef param_values[1], func;
+    char *func_name = "print_opcode";
+
+    param_types[0] = I32_TYPE;
+    param_values[0] = opcode;
+
+    func_type = LLVMFunctionType(VOID_TYPE, param_types, 1, false);
+    if (!(func = LLVMGetNamedFunction(func_ctx->module, func_name))
+        && !(func = LLVMAddFunction(func_ctx->module, func_name, func_type))) {
+        aot_set_last_error("add LLVM function failed.");
+        return false;
+    }
+
+    LLVMBuildCall2(comp_ctx->builder, func_type, func, param_values, 1, "");
+    return true;
+}
+
 static bool
 aot_compile_func(AOTCompContext *comp_ctx, uint32 func_index)
 {
@@ -1032,6 +1076,11 @@ aot_compile_func(AOTCompContext *comp_ctx, uint32 func_index)
         }
     }
 
+#if 0
+    call_print_func_idx(comp_ctx, func_ctx,
+                    I32_CONST(comp_ctx->comp_data->import_func_count + func_index));
+#endif
+
     while (frame_ip < frame_ip_end) {
         opcode = *frame_ip++;
 
@@ -1046,6 +1095,10 @@ aot_compile_func(AOTCompContext *comp_ctx, uint32 func_index)
         if (location != NULL) {
             LLVMSetCurrentDebugLocation2(comp_ctx->builder, location);
         }
+#endif
+
+#if 0
+        call_print_opcode(comp_ctx, func_ctx, I32_CONST(opcode));
 #endif
 
         switch (opcode) {

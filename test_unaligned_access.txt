@@ -1,0 +1,10 @@
+change WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS to 0
+
+cd product-mini/platforms/linux
+mkdir build && cd build
+rm -fr * && CC="zig cc -target x86_64-linux-gnu" cmake .. -DCMAKE_BUILD_TYPE=Debug \
+            -DWAMR_BUILD_SHARED=0 -DWAMR_BUILD_INTERP=1 -DWAMR_BUILD_FAST_INTERP=0 \
+            -DWAMR_DISABLE_WRITE_GS_BASE=1 -DWAMR_DISABLE_STACK_HW_BOUND_CHECK=1 \
+            -DCMAKE_ASM_COMPILER=x86_64-linux-gnu-gcc && make -j
+
+qemu-x86_64 ~/bin/iwasm -v=5 --heap-size=102400 test.wasm

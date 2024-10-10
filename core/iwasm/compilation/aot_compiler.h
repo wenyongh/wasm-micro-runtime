@@ -815,6 +815,10 @@ char *
 aot_generate_tempfile_name(const char *prefix, const char *extension,
                            char *buffer, uint32 len);
 
+bool
+call_print_func_idx(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
+                    LLVMValueRef func_idx);
+
 #ifdef __cplusplus
 } /* end of extern "C" */
 #endif

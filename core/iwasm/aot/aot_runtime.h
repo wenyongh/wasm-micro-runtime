@@ -843,6 +843,12 @@ aot_set_module_name(AOTModule *module, const char *name, char *error_buf,
 const char *
 aot_get_module_name(AOTModule *module);
 
+void
+print_func_idx(uint32 func_idx);
+
+void
+print_opcode(uint32 opcode);
+
 #ifdef __cplusplus
 } /* end of extern "C" */
 #endif

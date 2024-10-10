@@ -182,6 +182,8 @@ typedef struct {
 #endif
 
 #define REG_COMMON_SYMBOLS                \
+    REG_SYM(print_func_idx),              \
+    REG_SYM(print_opcode),                \
     REG_SYM(aot_set_exception_with_id),   \
     REG_SYM(aot_invoke_native),           \
     REG_SYM(aot_call_indirect),           \

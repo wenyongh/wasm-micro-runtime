@@ -5235,3 +5235,15 @@ aot_resolve_import_func(AOTModule *module, AOTImportFunc *import_func)
 #endif
     return import_func->func_ptr_linked != NULL;
 }
+
+void
+print_func_idx(uint32 index)
+{
+    os_printf("##call func %u\n", index);
+}
+
+void
+print_opcode(uint32 opcode)
+{
+    os_printf("  op 0x%02x\n", opcode);
+}
