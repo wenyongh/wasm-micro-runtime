@@ -5239,11 +5239,11 @@ aot_resolve_import_func(AOTModule *module, AOTImportFunc *import_func)
 void
 print_func_idx(uint32 index)
 {
-    os_printf("##call func %u\n", index);
+    os_printf("##call func %" PRIu32 "\n", index);
 }
 
 void
 print_opcode(uint32 opcode)
 {
-    os_printf("  op 0x%02x\n", opcode);
+    os_printf("  op 0x%02" PRIx32 "\n", opcode);
 }
