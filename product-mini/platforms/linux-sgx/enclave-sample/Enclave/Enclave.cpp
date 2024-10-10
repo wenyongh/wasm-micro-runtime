@@ -157,7 +157,7 @@ align_ptr(const uint8 *p, uint32 b)
 }
 
 #define AOT_SECTION_TYPE_TARGET_INFO 0
-#define AOT_SECTION_TYPE_SIGANATURE 6
+#define AOT_SECTION_TYPE_SIGNATURE 6
 #define E_TYPE_XIP 4
 
 #define CHECK_BUF(buf, buf_end, length)                      \
@@ -205,7 +205,7 @@ is_xip_file(const uint8 *buf, uint32 size)
             read_uint16(p, p_end, e_type);
             return (e_type == E_TYPE_XIP) ? true : false;
         }
-        else if (section_type >= AOT_SECTION_TYPE_SIGANATURE) {
+        else if (section_type >= AOT_SECTION_TYPE_SIGNATURE) {
             return false;
         }
         p += section_size;
@@ -250,7 +250,8 @@ handle_cmd_load_module(uint64 *args, uint32 argc)
 
         if (total_size >= UINT32_MAX
             || !(enclave_module = (EnclaveModule *)os_mmap(
-                     NULL, (uint32)total_size, map_prot, map_flags))) {
+                     NULL, (uint32)total_size, map_prot, map_flags,
+                     os_get_invalid_handle()))) {
             set_error_buf(error_buf, error_buf_size,
                           "WASM module load failed: mmap memory failed.");
             *(void **)args_org = NULL;
@@ -509,7 +510,7 @@ handle_cmd_set_log_level(uint64 *args, uint32 argc)
 #endif
 }
 
-#ifndef SGX_DISABLE_WASI
+#if WASM_ENABLE_LIBC_WASI != 0
 static void
 handle_cmd_set_wasi_args(uint64 *args, int32 argc)
 {
@@ -636,7 +637,7 @@ handle_cmd_set_wasi_args(uint64 *args, int32 argc)
 {
     *args = true;
 }
-#endif /* end of SGX_DISABLE_WASI */
+#endif /* end of WASM_ENABLE_LIBC_WASI != 0 */
 
 static void
 handle_cmd_get_version(uint64 *args, uint32 argc)

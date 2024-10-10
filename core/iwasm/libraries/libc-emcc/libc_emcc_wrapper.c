@@ -168,12 +168,21 @@ statbuf_native2app(const struct stat *statbuf_native,
     statbuf_app->st_blksize = (unsigned)statbuf_native->st_blksize;
     statbuf_app->st_blocks = (unsigned)statbuf_native->st_blocks;
     statbuf_app->st_ino = (int64)statbuf_native->st_ino;
+#if defined(__APPLE__)
+    statbuf_app->st_atim.tv_sec = (int)statbuf_native->st_atimespec.tv_sec;
+    statbuf_app->st_atim.tv_nsec = (int)statbuf_native->st_atimespec.tv_nsec;
+    statbuf_app->st_mtim.tv_sec = (int)statbuf_native->st_mtimespec.tv_sec;
+    statbuf_app->st_mtim.tv_nsec = (int)statbuf_native->st_mtimespec.tv_nsec;
+    statbuf_app->st_ctim.tv_sec = (int)statbuf_native->st_ctimespec.tv_sec;
+    statbuf_app->st_ctim.tv_nsec = (int)statbuf_native->st_ctimespec.tv_nsec;
+#else
     statbuf_app->st_atim.tv_sec = (int)statbuf_native->st_atim.tv_sec;
     statbuf_app->st_atim.tv_nsec = (int)statbuf_native->st_atim.tv_nsec;
     statbuf_app->st_mtim.tv_sec = (int)statbuf_native->st_mtim.tv_sec;
     statbuf_app->st_mtim.tv_nsec = (int)statbuf_native->st_mtim.tv_nsec;
     statbuf_app->st_ctim.tv_sec = (int)statbuf_native->st_ctim.tv_sec;
     statbuf_app->st_ctim.tv_nsec = (int)statbuf_native->st_ctim.tv_nsec;
+#endif
 }
 
 static int
@@ -184,7 +193,8 @@ __sys_stat64_wrapper(wasm_exec_env_t exec_env, const char *pathname,
     int ret;
     struct stat statbuf;
 
-    if (!validate_native_addr((void *)statbuf_app, sizeof(struct stat_emcc)))
+    if (!validate_native_addr((void *)statbuf_app,
+                              (uint64)sizeof(struct stat_emcc)))
         return -1;
 
     if (pathname == NULL)
@@ -204,7 +214,8 @@ __sys_fstat64_wrapper(wasm_exec_env_t exec_env, int fd,
     int ret;
     struct stat statbuf;
 
-    if (!validate_native_addr((void *)statbuf_app, sizeof(struct stat_emcc)))
+    if (!validate_native_addr((void *)statbuf_app,
+                              (uint64)sizeof(struct stat_emcc)))
         return -1;
 
     if (fd <= 0)
@@ -225,7 +236,7 @@ mmap_wrapper(wasm_exec_env_t exec_env, void *addr, int length, int prot,
     char *buf;
     int size_read;
 
-    buf_offset = module_malloc(length, (void **)&buf);
+    buf_offset = module_malloc((uint64)length, (void **)&buf);
     if (buf_offset == 0)
         return -1;
 
@@ -244,7 +255,7 @@ static int
 munmap_wrapper(wasm_exec_env_t exec_env, uint32 buf_offset, int length)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
-    module_free(buf_offset);
+    module_free((uint64)buf_offset);
     return 0;
 }
 
@@ -259,7 +270,8 @@ getentropy_wrapper(wasm_exec_env_t exec_env, void *buffer, uint32 length)
 {
     if (buffer == NULL)
         return -1;
-#if defined(_DEFAULT_SOURCE) || defined(BH_PLATFORM_LINUX_SGX)
+#if defined(_DEFAULT_SOURCE) || defined(BH_PLATFORM_LINUX_SGX) \
+    || defined(__APPLE__)
     return getentropy(buffer, length);
 #else
     return syscall(SYS_getrandom, buffer, length, 0);
@@ -269,14 +281,14 @@ getentropy_wrapper(wasm_exec_env_t exec_env, void *buffer, uint32 length)
 static int
 setjmp_wrapper(wasm_exec_env_t exec_env, void *jmp_buf)
 {
-    os_printf("setjmp() called\n");
+    LOG_DEBUG("setjmp() called\n");
     return 0;
 }
 
 static void
 longjmp_wrapper(wasm_exec_env_t exec_env, void *jmp_buf, int val)
 {
-    os_printf("longjmp() called\n");
+    LOG_DEBUG("longjmp() called\n");
 }
 
 #if !defined(BH_PLATFORM_LINUX_SGX)
@@ -422,7 +434,7 @@ __sys_getcwd_wrapper(wasm_exec_env_t exec_env, char *buf, uint32 size)
         return -1;
 
     ret = getcwd(buf, size);
-    return ret ? addr_native_to_app(ret) : 0;
+    return ret ? (uint32)addr_native_to_app(ret) : 0;
 }
 
 #include <sys/utsname.h>
@@ -443,7 +455,7 @@ __sys_uname_wrapper(wasm_exec_env_t exec_env, struct utsname_app *uname_app)
     struct utsname uname_native = { 0 };
     uint32 length;
 
-    if (!validate_native_addr(uname_app, sizeof(struct utsname_app)))
+    if (!validate_native_addr(uname_app, (uint64)sizeof(struct utsname_app)))
         return -1;
 
     if (uname(&uname_native) != 0) {
@@ -491,6 +503,24 @@ static void
 emscripten_notify_memory_growth_wrapper(wasm_exec_env_t exec_env, int i)
 {
     (void)i;
+}
+
+static void
+emscripten_sleep_wrapper(wasm_exec_env_t exec_env, int timeout_ms)
+{
+    unsigned int sec;
+    useconds_t us;
+
+    if (timeout_ms <= 0)
+        return;
+
+    sec = timeout_ms / 1000;
+    us = (timeout_ms % 1000) * 1000;
+
+    if (sec > 0)
+        sleep(sec);
+    if (us > 0)
+        usleep(us);
 }
 
 static void
@@ -542,6 +572,7 @@ static NativeSymbol native_symbols_libc_emcc[] = {
     REG_NATIVE_FUNC(__sys_getcwd, "(*~)i"),
     REG_NATIVE_FUNC(__sys_uname, "(*)i"),
     REG_NATIVE_FUNC(emscripten_notify_memory_growth, "(i)"),
+    REG_NATIVE_FUNC(emscripten_sleep, "(i)"),
     REG_NATIVE_FUNC(emscripten_thread_sleep, "(F)"),
 #endif /* end of BH_PLATFORM_LINUX_SGX */
 };

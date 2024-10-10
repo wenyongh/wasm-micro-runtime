@@ -7,100 +7,70 @@
 
 #include "ssp_config.h"
 #include "blocking_op.h"
+#include "libc_errno.h"
 
-int
-blocking_op_close(wasm_exec_env_t exec_env, int fd)
+__wasi_errno_t
+blocking_op_close(wasm_exec_env_t exec_env, os_file_handle handle,
+                  bool is_stdio)
 {
     if (!wasm_runtime_begin_blocking_op(exec_env)) {
-        errno = EINTR;
-        return -1;
+        return __WASI_EINTR;
     }
-    int ret = close(fd);
+    __wasi_errno_t error = os_close(handle, is_stdio);
     wasm_runtime_end_blocking_op(exec_env);
-    return ret;
+    return error;
 }
 
-ssize_t
-blocking_op_readv(wasm_exec_env_t exec_env, int fd, const struct iovec *iov,
-                  int iovcnt)
+__wasi_errno_t
+blocking_op_readv(wasm_exec_env_t exec_env, os_file_handle handle,
+                  const struct __wasi_iovec_t *iov, int iovcnt, size_t *nread)
 {
     if (!wasm_runtime_begin_blocking_op(exec_env)) {
-        errno = EINTR;
-        return -1;
+        return __WASI_EINTR;
     }
-    ssize_t ret = readv(fd, iov, iovcnt);
+    __wasi_errno_t error = os_readv(handle, iov, iovcnt, nread);
     wasm_runtime_end_blocking_op(exec_env);
-    return ret;
+    return error;
 }
 
-#if CONFIG_HAS_PREADV
-ssize_t
-blocking_op_preadv(wasm_exec_env_t exec_env, int fd, const struct iovec *iov,
-                   int iovcnt, off_t offset)
+__wasi_errno_t
+blocking_op_preadv(wasm_exec_env_t exec_env, os_file_handle handle,
+                   const struct __wasi_iovec_t *iov, int iovcnt,
+                   __wasi_filesize_t offset, size_t *nread)
 {
     if (!wasm_runtime_begin_blocking_op(exec_env)) {
-        errno = EINTR;
-        return -1;
+        return __WASI_EINTR;
     }
-    ssize_t ret = preadv(fd, iov, iovcnt, offset);
-    wasm_runtime_end_blocking_op(exec_env);
-    return ret;
-}
-#else  /* CONFIG_HAS_PREADV */
-ssize_t
-blocking_op_pread(wasm_exec_env_t exec_env, int fd, void *p, size_t nb,
-                  off_t offset)
-{
-    if (!wasm_runtime_begin_blocking_op(exec_env)) {
-        errno = EINTR;
-        return -1;
-    }
-    ssize_t ret = pread(fd, p, nb, offset);
-    wasm_runtime_end_blocking_op(exec_env);
-    return ret;
-}
-#endif /* CONFIG_HAS_PREADV */
-
-ssize_t
-blocking_op_writev(wasm_exec_env_t exec_env, int fd, const struct iovec *iov,
-                   int iovcnt)
-{
-    if (!wasm_runtime_begin_blocking_op(exec_env)) {
-        errno = EINTR;
-        return -1;
-    }
-    ssize_t ret = writev(fd, iov, iovcnt);
+    __wasi_errno_t ret = os_preadv(handle, iov, iovcnt, offset, nread);
     wasm_runtime_end_blocking_op(exec_env);
     return ret;
 }
 
-#if CONFIG_HAS_PWRITEV
-ssize_t
-blocking_op_pwritev(wasm_exec_env_t exec_env, int fd, const struct iovec *iov,
-                    int iovcnt, off_t offset)
+__wasi_errno_t
+blocking_op_writev(wasm_exec_env_t exec_env, os_file_handle handle,
+                   const struct __wasi_ciovec_t *iov, int iovcnt,
+                   size_t *nwritten)
 {
     if (!wasm_runtime_begin_blocking_op(exec_env)) {
-        errno = EINTR;
-        return -1;
+        return __WASI_EINTR;
     }
-    ssize_t ret = pwritev(fd, iov, iovcnt, offset);
+    __wasi_errno_t error = os_writev(handle, iov, iovcnt, nwritten);
     wasm_runtime_end_blocking_op(exec_env);
-    return ret;
+    return error;
 }
-#else  /* CONFIG_HAS_PWRITEV */
-ssize_t
-blocking_op_pwrite(wasm_exec_env_t exec_env, int fd, const void *p, size_t nb,
-                   off_t offset)
+
+__wasi_errno_t
+blocking_op_pwritev(wasm_exec_env_t exec_env, os_file_handle handle,
+                    const struct __wasi_ciovec_t *iov, int iovcnt,
+                    __wasi_filesize_t offset, size_t *nwritten)
 {
     if (!wasm_runtime_begin_blocking_op(exec_env)) {
-        errno = EINTR;
-        return -1;
+        return __WASI_EINTR;
     }
-    ssize_t ret = pwrite(fd, p, nb, offset);
+    __wasi_errno_t error = os_pwritev(handle, iov, iovcnt, offset, nwritten);
     wasm_runtime_end_blocking_op(exec_env);
-    return ret;
+    return error;
 }
-#endif /* CONFIG_HAS_PWRITEV */
 
 int
 blocking_op_socket_accept(wasm_exec_env_t exec_env, bh_socket_t server_sock,
@@ -187,15 +157,37 @@ blocking_op_socket_addr_resolve(wasm_exec_env_t exec_env, const char *host,
     return ret;
 }
 
-int
-blocking_op_openat(wasm_exec_env_t exec_env, int fd, const char *path,
-                   int oflags, mode_t mode)
+__wasi_errno_t
+blocking_op_openat(wasm_exec_env_t exec_env, os_file_handle handle,
+                   const char *path, __wasi_oflags_t oflags,
+                   __wasi_fdflags_t fd_flags, __wasi_lookupflags_t lookup_flags,
+                   wasi_libc_file_access_mode access_mode, os_file_handle *out)
 {
     if (!wasm_runtime_begin_blocking_op(exec_env)) {
-        errno = EINTR;
-        return -1;
+        return __WASI_EINTR;
     }
-    int ret = openat(fd, path, oflags, mode);
+    __wasi_errno_t error = os_openat(handle, path, oflags, fd_flags,
+                                     lookup_flags, access_mode, out);
     wasm_runtime_end_blocking_op(exec_env);
-    return ret;
+    return error;
 }
+
+#ifndef BH_PLATFORM_WINDOWS
+/* REVISIT: apply the os_file_handle style abstraction for pollfd? */
+__wasi_errno_t
+blocking_op_poll(wasm_exec_env_t exec_env, struct pollfd *pfds, nfds_t nfds,
+                 int timeout_ms, int *retp)
+{
+    int ret;
+    if (!wasm_runtime_begin_blocking_op(exec_env)) {
+        return __WASI_EINTR;
+    }
+    ret = poll(pfds, nfds, timeout_ms);
+    wasm_runtime_end_blocking_op(exec_env);
+    if (ret == -1) {
+        return convert_errno(errno);
+    }
+    *retp = ret;
+    return 0;
+}
+#endif

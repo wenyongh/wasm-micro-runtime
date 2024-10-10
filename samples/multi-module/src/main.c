@@ -11,7 +11,7 @@ static bool
 module_reader_callback(package_type_t module_type, const char *module_name,
                        uint8 **p_buffer, uint32 *p_size)
 {
-    char *file_format;
+    char *file_format = NULL;
 #if WASM_ENABLE_INTERP != 0
     if (module_type == Wasm_Module_Bytecode)
         file_format = ".wasm";
@@ -21,10 +21,11 @@ module_reader_callback(package_type_t module_type, const char *module_name,
         file_format = ".aot";
 
 #endif
+    bh_assert(file_format != NULL);
     const char *format = "%s/%s%s";
     int sz = strlen(module_search_path) + strlen("/") + strlen(module_name)
              + strlen(file_format) + 1;
-    char *wasm_file_name = BH_MALLOC(sz);
+    char *wasm_file_name = wasm_runtime_malloc(sz);
     if (!wasm_file_name) {
         return false;
     }
@@ -37,7 +38,7 @@ module_reader_callback(package_type_t module_type, const char *module_name,
 }
 
 static void
-moudle_destroyer(uint8 *buffer, uint32 size)
+module_destroyer_callback(uint8 *buffer, uint32 size)
 {
     if (!buffer) {
         return;
@@ -88,7 +89,8 @@ main(int argc, char *argv[])
 #if WASM_ENABLE_MULTI_MODULE != 0
     printf("- wasm_runtime_set_module_reader\n");
     /* set module reader and destroyer */
-    wasm_runtime_set_module_reader(module_reader_callback, moudle_destroyer);
+    wasm_runtime_set_module_reader(module_reader_callback,
+                                   module_destroyer_callback);
 #endif
 
     /* load WASM byte buffer from WASM bin file */
@@ -162,7 +164,7 @@ UNLOAD_MODULE:
     printf("- wasm_runtime_unload\n");
     wasm_runtime_unload(module);
 RELEASE_BINARY:
-    moudle_destroyer(file_buf, file_buf_size);
+    module_destroyer_callback(file_buf, file_buf_size);
 RELEASE_RUNTIME:
     printf("- wasm_runtime_destroy\n");
     wasm_runtime_destroy();

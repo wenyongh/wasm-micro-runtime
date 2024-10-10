@@ -9,11 +9,25 @@ THIS_DIR=$(cd $(dirname $0) && pwd -P)
 
 readonly MODE=$1
 readonly TARGET=$2
+readonly TEST_FILTER=$3
 
 readonly WORK_DIR=$PWD
-readonly PLATFORM=$(uname -s | tr A-Z a-z)
+
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    readonly PLATFORM=windows
+    readonly PYTHON_EXE=python
+    # see https://github.com/pypa/virtualenv/commit/993ba1316a83b760370f5a3872b3f5ef4dd904c1
+    readonly VENV_BIN_DIR=Scripts
+    readonly IWASM_EXE=$(cygpath -m "${WORK_DIR}/../../../../product-mini/platforms/${PLATFORM}/build/RelWithDebInfo/iwasm.exe")
+else
+    readonly PLATFORM=$(uname -s | tr A-Z a-z)
+    readonly VENV_BIN_DIR=bin
+    readonly PYTHON_EXE=python3
+    readonly IWASM_EXE="${WORK_DIR}/../../../../product-mini/platforms/${PLATFORM}/build/iwasm"
+fi
+
 readonly WAMR_DIR="${WORK_DIR}/../../../.."
-readonly IWASM_CMD="${WORK_DIR}/../../../../product-mini/platforms/${PLATFORM}/build/iwasm \
+readonly IWASM_CMD="${IWASM_EXE} \
     --allow-resolve=google-public-dns-a.google.com \
     --addr-pool=::1/128,127.0.0.1/32"
 
@@ -27,9 +41,28 @@ readonly THREAD_INTERNAL_TESTS="${WAMR_DIR}/core/iwasm/libraries/lib-wasi-thread
 readonly THREAD_STRESS_TESTS="${WAMR_DIR}/core/iwasm/libraries/lib-wasi-threads/stress-test/"
 readonly LIB_SOCKET_TESTS="${WAMR_DIR}/core/iwasm/libraries/lib-socket/test/"
 
+add_env_key_to_test_config_file() {
+    filepath="tests/$2/testsuite/$3.json"
+    modified_contents=$(jq ".env.$1 = 1" "$filepath")
+    echo "$modified_contents" > "$filepath"
+}
+
 run_aot_tests () {
-    local tests=("$@")
+    local -n tests=$1
+    local -n excluded_tests=$2
+
     for test_wasm in ${tests[@]}; do
+        # get the base file name from the filepath
+        local test_name=${test_wasm##*/}
+        test_name=${test_name%.wasm}
+
+        for excluded_test in "${excluded_tests[@]}"; do
+            if [[ $excluded_test == "\"$test_name\"" ]]; then
+                echo "Skipping test $test_name"
+                continue 2
+            fi
+        done
+
         local iwasm="${IWASM_CMD}"
         if [[ $test_wasm =~ "stress" ]]; then
             iwasm="${IWASM_CMD_STRESS}"
@@ -52,7 +85,7 @@ run_aot_tests () {
             expected=$(jq .exit_code ${test_json})
         fi
 
-        python3 ${THIS_DIR}/pipe.py | ${iwasm} $test_aot
+        $PYTHON_EXE ${THIS_DIR}/pipe.py | ${iwasm} $test_aot
         ret=${PIPESTATUS[1]}
 
         echo "expected=$expected, actual=$ret"
@@ -63,23 +96,38 @@ run_aot_tests () {
 }
 
 if [[ $MODE != "aot" ]];then
-    python3 -m venv wasi-env && source wasi-env/bin/activate
-    python3 -m pip install -r test-runner/requirements.txt
+    $PYTHON_EXE -m venv wasi-env && source wasi-env/${VENV_BIN_DIR}/activate
+    $PYTHON_EXE -m pip install -r test-runner/requirements.txt
 
     export TEST_RUNTIME_EXE="${IWASM_CMD}"
-    python3 ${THIS_DIR}/pipe.py | python3 test-runner/wasi_test_runner.py \
-            -r adapters/wasm-micro-runtime.py \
-            -t \
-                ${C_TESTS} \
-                ${RUST_TESTS} \
-                ${ASSEMBLYSCRIPT_TESTS} \
-                ${THREAD_PROPOSAL_TESTS} \
-                ${THREAD_INTERNAL_TESTS} \
-                ${LIB_SOCKET_TESTS} \
+
+    # Some of the WASI test assertions can be controlled via environment
+    # variables. The following ones are set on Windows so that the tests pass.
+    if [ "$PLATFORM" == "windows" ]; then
+        add_env_key_to_test_config_file NO_DANGLING_FILESYSTEM rust symlink_loop
+        add_env_key_to_test_config_file NO_DANGLING_FILESYSTEM rust dangling_symlink
+        add_env_key_to_test_config_file ERRNO_MODE_WINDOWS rust path_open_preopen
+        add_env_key_to_test_config_file NO_RENAME_DIR_TO_EMPTY_DIR rust path_rename
+    fi
+
+    TEST_OPTIONS="-r adapters/wasm-micro-runtime.py \
+        -t \
+            ${C_TESTS} \
+            ${RUST_TESTS} \
+            ${ASSEMBLYSCRIPT_TESTS} \
+            ${THREAD_PROPOSAL_TESTS} \
+            ${THREAD_INTERNAL_TESTS} \
+            ${LIB_SOCKET_TESTS}"
+
+    if [ -n "$TEST_FILTER" ]; then
+        TEST_OPTIONS="${TEST_OPTIONS} --exclude-filter ${TEST_FILTER}"
+    fi
+
+    $PYTHON_EXE ${THIS_DIR}/pipe.py | TSAN_OPTIONS=${TSAN_OPTIONS} $PYTHON_EXE test-runner/wasi_test_runner.py $TEST_OPTIONS
 
     ret=${PIPESTATUS[1]}
 
-    TEST_RUNTIME_EXE="${IWASM_CMD_STRESS}" python3 test-runner/wasi_test_runner.py \
+    TEST_RUNTIME_EXE="${IWASM_CMD_STRESS}" TSAN_OPTIONS=${TSAN_OPTIONS} $PYTHON_EXE test-runner/wasi_test_runner.py \
             -r adapters/wasm-micro-runtime.py \
             -t \
                 ${THREAD_STRESS_TESTS}
@@ -101,7 +149,17 @@ else
     for testsuite in ${THREAD_STRESS_TESTS} ${THREAD_PROPOSAL_TESTS} ${THREAD_INTERNAL_TESTS}; do
         tests=$(ls ${testsuite}*.wasm)
         tests_array=($tests)
-        run_aot_tests "${tests_array[@]}"
+
+        if [ -n "$TEST_FILTER" ]; then
+            readarray -t excluded_tests_array < <(jq -c \
+                --slurpfile testsuite_manifest $testsuite/manifest.json \
+                '.[$testsuite_manifest[0].name] // {} | keys[]' \
+                $TEST_FILTER)
+        else
+            excluded_tests_array=()
+        fi
+
+        run_aot_tests tests_array excluded_tests_array
     done
 fi
 

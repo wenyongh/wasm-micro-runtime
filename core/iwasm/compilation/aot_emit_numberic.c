@@ -171,15 +171,6 @@
         right = shift_count_mask;                                      \
     } while (0)
 
-static bool
-is_shift_count_mask_needed(AOTCompContext *comp_ctx, LLVMValueRef left,
-                           LLVMValueRef right)
-{
-    return (strcmp(comp_ctx->target_arch, "x86_64") != 0
-            && strcmp(comp_ctx->target_arch, "i386") != 0)
-           || (LLVMIsEfficientConstInt(left) && LLVMIsEfficientConstInt(right));
-}
-
 /* Call llvm constrained floating-point intrinsic */
 static LLVMValueRef
 call_llvm_float_experimental_constrained_intrinsic(AOTCompContext *comp_ctx,
@@ -237,6 +228,7 @@ compile_op_float_min_max(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
                          bool is_f32, LLVMValueRef left, LLVMValueRef right,
                          bool is_min)
 {
+    LLVMTypeRef float_param_types[2];
     LLVMTypeRef param_types[2], ret_type = is_f32 ? F32_TYPE : F64_TYPE,
                                 int_type = is_f32 ? I32_TYPE : I64_TYPE;
     LLVMValueRef cmp, is_eq, is_nan, ret, left_int, right_int, tmp,
@@ -245,7 +237,9 @@ compile_op_float_min_max(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
                              : (is_f32 ? "llvm.maxnum.f32" : "llvm.maxnum.f64");
     CHECK_LLVM_CONST(nan);
 
-    param_types[0] = param_types[1] = ret_type;
+    /* Note: param_types is used by LLVM_BUILD_OP_OR_INTRINSIC */
+    param_types[0] = param_types[1] = int_type;
+    float_param_types[0] = float_param_types[1] = ret_type;
 
     if (comp_ctx->disable_llvm_intrinsics
         && aot_intrinsic_check_capability(comp_ctx,
@@ -313,7 +307,7 @@ compile_op_float_min_max(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     }
 
     if (!(cmp = aot_call_llvm_intrinsic(comp_ctx, func_ctx, intrinsic, ret_type,
-                                        param_types, 2, left, right)))
+                                        float_param_types, 2, left, right)))
         return NULL;
 
     /* The result of XIP intrinsic is 0 or 1, should return it directly */
@@ -563,7 +557,7 @@ compile_int_div(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         }
     }
     else {
-        /* Check divied by zero */
+        /* Check divided by zero */
         LLVM_BUILD_ICMP(LLVMIntEQ, right, is_i32 ? I32_ZERO : I64_ZERO,
                         cmp_div_zero, "cmp_div_zero");
         ADD_BASIC_BLOCK(check_div_zero_succ, "check_div_zero_success");
@@ -737,8 +731,7 @@ compile_int_shl(AOTCompContext *comp_ctx, LLVMValueRef left, LLVMValueRef right,
 {
     LLVMValueRef res;
 
-    if (is_shift_count_mask_needed(comp_ctx, left, right))
-        SHIFT_COUNT_MASK;
+    SHIFT_COUNT_MASK;
 
     /* Build shl */
     LLVM_BUILD_OP(Shl, left, right, res, "shl", NULL);
@@ -752,8 +745,7 @@ compile_int_shr_s(AOTCompContext *comp_ctx, LLVMValueRef left,
 {
     LLVMValueRef res;
 
-    if (is_shift_count_mask_needed(comp_ctx, left, right))
-        SHIFT_COUNT_MASK;
+    SHIFT_COUNT_MASK;
 
     /* Build shl */
     LLVM_BUILD_OP(AShr, left, right, res, "shr_s", NULL);
@@ -767,8 +759,7 @@ compile_int_shr_u(AOTCompContext *comp_ctx, LLVMValueRef left,
 {
     LLVMValueRef res;
 
-    if (is_shift_count_mask_needed(comp_ctx, left, right))
-        SHIFT_COUNT_MASK;
+    SHIFT_COUNT_MASK;
 
     /* Build shl */
     LLVM_BUILD_OP(LShr, left, right, res, "shr_u", NULL);
@@ -789,17 +780,25 @@ compile_int_rot(AOTCompContext *comp_ctx, LLVMValueRef left, LLVMValueRef right,
     if (IS_CONST_ZERO(right))
         return left;
 
-    /* Calculate (bits - shif_count) */
+    /* Calculate (bits - shift_count) */
     LLVM_BUILD_OP(Sub, is_i32 ? I32_32 : I64_64, right, bits_minus_shift_count,
                   "bits_minus_shift_count", NULL);
+    /* Calculate (bits - shift_count) & mask */
+    bits_minus_shift_count =
+        LLVMBuildAnd(comp_ctx->builder, bits_minus_shift_count,
+                     is_i32 ? I32_31 : I64_63, "bits_minus_shift_count_and");
+    if (!bits_minus_shift_count) {
+        aot_set_last_error("llvm build and failed.");
+        return NULL;
+    }
 
     if (is_rotl) {
-        /* left<<count | left>>(BITS-count) */
+        /* (left << count) | (left >> ((BITS - count) & mask)) */
         LLVM_BUILD_OP(Shl, left, right, tmp_l, "tmp_l", NULL);
         LLVM_BUILD_OP(LShr, left, bits_minus_shift_count, tmp_r, "tmp_r", NULL);
     }
     else {
-        /* left>>count | left<<(BITS-count) */
+        /* (left >> count) | (left << ((BITS - count) & mask)) */
         LLVM_BUILD_OP(LShr, left, right, tmp_l, "tmp_l", NULL);
         LLVM_BUILD_OP(Shl, left, bits_minus_shift_count, tmp_r, "tmp_r", NULL);
     }

@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "llvm-c/LLJIT.h"
 #include "llvm-c/Orc.h"
 #include "llvm-c/OrcEE.h"
@@ -12,11 +16,13 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #endif
+#include "llvm/ExecutionEngine/JITEventListener.h"
+#include "llvm/ExecutionEngine/Orc/CompileOnDemandLayer.h"
 #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
 #include "llvm/ExecutionEngine/Orc/ObjectTransformLayer.h"
 #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
-#include "llvm/ExecutionEngine/Orc/CompileOnDemandLayer.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/Support/CBindingWrapping.h"
 
@@ -42,6 +48,7 @@ class InProgressLookupState;
 class OrcV2CAPIHelper
 {
   public:
+#if LLVM_VERSION_MAJOR < 18
     using PoolEntry = SymbolStringPtr::PoolEntry;
     using PoolEntryPtr = SymbolStringPtr::PoolEntryPtr;
 
@@ -84,6 +91,7 @@ class OrcV2CAPIHelper
         S.S = P;
     }
 
+#endif
     static InProgressLookupState *extractLookupState(LookupState &LS)
     {
         return LS.IPLS.release();
@@ -99,6 +107,20 @@ class OrcV2CAPIHelper
 } // namespace llvm
 
 // ORC.h
+#if LLVM_VERSION_MAJOR >= 18
+inline LLVMOrcSymbolStringPoolEntryRef
+wrap(SymbolStringPoolEntryUnsafe E)
+{
+    return reinterpret_cast<LLVMOrcSymbolStringPoolEntryRef>(E.rawPtr());
+}
+
+inline SymbolStringPoolEntryUnsafe
+unwrap(LLVMOrcSymbolStringPoolEntryRef E)
+{
+    return reinterpret_cast<SymbolStringPoolEntryUnsafe::PoolEntry *>(E);
+}
+#endif
+
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(ExecutionSession, LLVMOrcExecutionSessionRef)
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(IRTransformLayer, LLVMOrcIRTransformLayerRef)
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(JITDylib, LLVMOrcJITDylibRef)
@@ -106,8 +128,11 @@ DEFINE_SIMPLE_CONVERSION_FUNCTIONS(JITTargetMachineBuilder,
                                    LLVMOrcJITTargetMachineBuilderRef)
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(ObjectTransformLayer,
                                    LLVMOrcObjectTransformLayerRef)
+#if LLVM_VERSION_MAJOR < 18
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(OrcV2CAPIHelper::PoolEntry,
                                    LLVMOrcSymbolStringPoolEntryRef)
+#endif
+DEFINE_SIMPLE_CONVERSION_FUNCTIONS(ObjectLayer, LLVMOrcObjectLayerRef)
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(SymbolStringPool, LLVMOrcSymbolStringPoolRef)
 DEFINE_SIMPLE_CONVERSION_FUNCTIONS(ThreadSafeModule, LLVMOrcThreadSafeModuleRef)
 
@@ -164,7 +189,7 @@ PartitionFunction(GlobalValueSet Requested)
             auto GVName = GV->getName();         /* get the function name */
             const char *gvname = GVName.begin(); /* C function name */
             const char *wrapper;
-            uint32 prefix_len = strlen(AOT_FUNC_PREFIX);
+            uint32 prefix_len = (uint32)strlen(AOT_FUNC_PREFIX);
 
             LOG_DEBUG("requested func %s", gvname);
             /* Convert "aot_func#n_wrapper" to "aot_func#n" */
@@ -178,7 +203,7 @@ PartitionFunction(GlobalValueSet Requested)
                  * if the jit wrapper (which has "_wrapper" suffix in
                  * the name) is requested, compile others in the group too.
                  * otherwise, only compile the requested one.
-                 * (and possibly the correspondig wrapped function,
+                 * (and possibly the corresponding wrapped function,
                  * which has AOT_FUNC_INTERNAL_PREFIX.)
                  */
                 wrapper = strstr(gvname + prefix_len, "_wrapper");
@@ -289,8 +314,13 @@ LLVMOrcSymbolStringPoolEntryRef
 LLVMOrcLLLazyJITMangleAndIntern(LLVMOrcLLLazyJITRef J,
                                 const char *UnmangledName)
 {
+#if LLVM_VERSION_MAJOR < 18
     return wrap(OrcV2CAPIHelper::moveFromSymbolStringPtr(
         unwrap(J)->mangleAndIntern(UnmangledName)));
+#else
+    return wrap(SymbolStringPoolEntryUnsafe::take(
+        unwrap(J)->mangleAndIntern(UnmangledName)));
+#endif
 }
 
 LLVMOrcJITDylibRef
@@ -321,4 +351,10 @@ LLVMOrcObjectTransformLayerRef
 LLVMOrcLLLazyJITGetObjTransformLayer(LLVMOrcLLLazyJITRef J)
 {
     return wrap(&unwrap(J)->getObjTransformLayer());
+}
+
+LLVMOrcObjectLayerRef
+LLVMOrcLLLazyJITGetObjLinkingLayer(LLVMOrcLLLazyJITRef J)
+{
+    return wrap(&unwrap(J)->getObjLinkingLayer());
 }
