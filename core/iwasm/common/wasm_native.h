@@ -51,8 +51,9 @@ wasm_native_lookup_libc_builtin_global(const char *module_name,
  */
 void *
 wasm_native_resolve_symbol(const char *module_name, const char *field_name,
-                           const WASMType *func_type, const char **p_signature,
-                           void **p_attachment, bool *p_call_conv_raw);
+                           const WASMFuncType *func_type,
+                           const char **p_signature, void **p_attachment,
+                           bool *p_call_conv_raw);
 
 bool
 wasm_native_register_natives(const char *module_name,
@@ -99,14 +100,14 @@ wasm_native_inherit_contexts(struct WASMModuleInstanceCommon *child,
 #endif /* WASM_ENABLE_MODULE_INST_CONTEXT */
 
 bool
-wasm_native_init();
+wasm_native_init(void);
 
 void
-wasm_native_destroy();
+wasm_native_destroy(void);
 
 #if WASM_ENABLE_QUICK_AOT_ENTRY != 0
 void *
-wasm_native_lookup_quick_aot_entry(const WASMType *func_type);
+wasm_native_lookup_quick_aot_entry(const WASMFuncType *func_type);
 #endif
 
 #ifdef __cplusplus

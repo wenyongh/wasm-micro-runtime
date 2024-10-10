@@ -232,14 +232,14 @@ destroy_wait_info(void *wait_info)
 }
 
 static void
-map_try_release_wait_info(HashMap *wait_map_, AtomicWaitInfo *wait_info,
+map_try_release_wait_info(HashMap *wait_hash_map, AtomicWaitInfo *wait_info,
                           void *address)
 {
     if (wait_info->wait_list->len > 0) {
         return;
     }
 
-    bh_hash_map_remove(wait_map_, address, NULL, NULL);
+    bh_hash_map_remove(wait_hash_map, address, NULL, NULL);
     destroy_wait_info(wait_info);
 }
 
@@ -281,8 +281,7 @@ wasm_runtime_atomic_wait(WASMModuleInstanceCommon *module, void *address,
     shared_memory_unlock(module_inst->memories[0]);
 
 #if WASM_ENABLE_THREAD_MGR != 0
-    exec_env =
-        wasm_runtime_get_cur_exec_env((WASMModuleInstanceCommon *)module_inst);
+    exec_env = module_inst->cur_exec_env;
     bh_assert(exec_env);
 #endif
 
@@ -333,7 +332,7 @@ wasm_runtime_atomic_wait(WASMModuleInstanceCommon *module, void *address,
 
     while (1) {
         if (timeout < 0) {
-            /* wait forever until it is notified or terminatied
+            /* wait forever until it is notified or terminated
                here we keep waiting and checking every second */
             os_cond_reltimedwait(&wait_node->wait_cond, lock,
                                  (uint64)timeout_1sec);

@@ -16,8 +16,8 @@
 void
 wasm_runtime_set_exception(wasm_module_inst_t module, const char *exception);
 
-uint32
-wasm_runtime_module_realloc(wasm_module_inst_t module, uint32 ptr, uint32 size,
+uint64
+wasm_runtime_module_realloc(wasm_module_inst_t module, uint64 ptr, uint64 size,
                             void **p_native_addr);
 
 /* clang-format off */
@@ -233,7 +233,7 @@ _vprintf_wa(out_func_t out, void *ctx, const char *fmt, _va_list ap,
                         return false;
                     }
 
-                    s = start = addr_app_to_native(s_offset);
+                    s = start = addr_app_to_native((uint64)s_offset);
 
                     str_len = (uint32)strlen(start);
                     if (str_len >= UINT32_MAX - 64) {
@@ -321,10 +321,22 @@ fail:
     return false;
 }
 
+#ifndef BUILTIN_LIBC_BUFFERED_PRINTF
+#define BUILTIN_LIBC_BUFFERED_PRINTF 0
+#endif
+
+#ifndef BUILTIN_LIBC_BUFFERED_PRINT_SIZE
+#define BUILTIN_LIBC_BUFFERED_PRINT_SIZE 128
+#endif
+
 struct str_context {
     char *str;
     uint32 max;
     uint32 count;
+#if BUILTIN_LIBC_BUFFERED_PRINTF != 0
+    char print_buf[BUILTIN_LIBC_BUFFERED_PRINT_SIZE];
+    uint32 print_buf_size;
+#endif
 };
 
 static int
@@ -345,41 +357,23 @@ sprintf_out(int c, struct str_context *ctx)
     return c;
 }
 
-#ifndef BUILTIN_LIBC_BUFFERED_PRINTF
-#define BUILTIN_LIBC_BUFFERED_PRINTF 0
-#endif
-
-#ifndef BUILTIN_LIBC_BUFFERED_PRINT_SIZE
-#define BUILTIN_LIBC_BUFFERED_PRINT_SIZE 128
-#endif
-#ifndef BUILTIN_LIBC_BUFFERED_PRINT_PREFIX
-#define BUILTIN_LIBC_BUFFERED_PRINT_PREFIX
-#endif
-
 #if BUILTIN_LIBC_BUFFERED_PRINTF != 0
-
-BUILTIN_LIBC_BUFFERED_PRINT_PREFIX
-static char print_buf[BUILTIN_LIBC_BUFFERED_PRINT_SIZE] = { 0 };
-
-BUILTIN_LIBC_BUFFERED_PRINT_PREFIX
-static int print_buf_size = 0;
-
 static int
 printf_out(int c, struct str_context *ctx)
 {
     if (c == '\n') {
-        print_buf[print_buf_size] = '\0';
-        os_printf("%s\n", print_buf);
-        print_buf_size = 0;
+        ctx->print_buf[ctx->print_buf_size] = '\0';
+        os_printf("%s\n", ctx->print_buf);
+        ctx->print_buf_size = 0;
     }
-    else if (print_buf_size >= sizeof(print_buf) - 2) {
-        print_buf[print_buf_size++] = (char)c;
-        print_buf[print_buf_size] = '\0';
-        os_printf("%s\n", print_buf);
-        print_buf_size = 0;
+    else if (ctx->print_buf_size >= sizeof(ctx->print_buf) - 2) {
+        ctx->print_buf[ctx->print_buf_size++] = (char)c;
+        ctx->print_buf[ctx->print_buf_size] = '\0';
+        os_printf("%s\n", ctx->print_buf);
+        ctx->print_buf_size = 0;
     }
     else {
-        print_buf[print_buf_size++] = (char)c;
+        ctx->print_buf[ctx->print_buf_size++] = (char)c;
     }
     ctx->count++;
     return c;
@@ -398,15 +392,22 @@ static int
 printf_wrapper(wasm_exec_env_t exec_env, const char *format, _va_list va_args)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
-    struct str_context ctx = { NULL, 0, 0 };
+    struct str_context ctx = { 0 };
+
+    memset(&ctx, 0, sizeof(ctx));
 
     /* format has been checked by runtime */
-    if (!validate_native_addr(va_args, sizeof(int32)))
+    if (!validate_native_addr(va_args, (uint64)sizeof(int32)))
         return 0;
 
     if (!_vprintf_wa((out_func_t)printf_out, &ctx, format, va_args,
                      module_inst))
         return 0;
+
+#if BUILTIN_LIBC_BUFFERED_PRINTF != 0
+    if (ctx.print_buf_size > 0)
+        os_printf("%s", ctx.print_buf);
+#endif
 
     return (int)ctx.count;
 }
@@ -420,13 +421,13 @@ sprintf_wrapper(wasm_exec_env_t exec_env, char *str, const char *format,
     struct str_context ctx;
 
     /* str and format have been checked by runtime */
-    if (!validate_native_addr(va_args, sizeof(uint32)))
+    if (!validate_native_addr(va_args, (uint64)sizeof(uint32)))
         return 0;
 
     if (!wasm_runtime_get_native_addr_range(module_inst, (uint8 *)str, NULL,
                                             &native_end_offset)) {
         wasm_runtime_set_exception(module_inst, "out of bounds memory access");
-        return false;
+        return 0;
     }
 
     ctx.str = str;
@@ -452,7 +453,7 @@ snprintf_wrapper(wasm_exec_env_t exec_env, char *str, uint32 size,
     struct str_context ctx;
 
     /* str and format have been checked by runtime */
-    if (!validate_native_addr(va_args, sizeof(uint32)))
+    if (!validate_native_addr(va_args, (uint64)sizeof(uint32)))
         return 0;
 
     ctx.str = str;
@@ -499,7 +500,7 @@ strdup_wrapper(wasm_exec_env_t exec_env, const char *str)
     if (str) {
         len = (uint32)strlen(str) + 1;
 
-        str_ret_offset = module_malloc(len, (void **)&str_ret);
+        str_ret_offset = (uint32)module_malloc((uint64)len, (void **)&str_ret);
         if (str_ret_offset) {
             bh_memcpy_s(str_ret, len, str, len);
         }
@@ -521,7 +522,7 @@ memcmp_wrapper(wasm_exec_env_t exec_env, const void *s1, const void *s2,
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
 
     /* s2 has been checked by runtime */
-    if (!validate_native_addr((void *)s1, size))
+    if (!validate_native_addr((void *)s1, (uint64)size))
         return 0;
 
     return memcmp(s1, s2, size);
@@ -532,13 +533,13 @@ memcpy_wrapper(wasm_exec_env_t exec_env, void *dst, const void *src,
                uint32 size)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
-    uint32 dst_offset = addr_native_to_app(dst);
+    uint32 dst_offset = (uint32)addr_native_to_app(dst);
 
     if (size == 0)
         return dst_offset;
 
     /* src has been checked by runtime */
-    if (!validate_native_addr(dst, size))
+    if (!validate_native_addr(dst, (uint64)size))
         return dst_offset;
 
     bh_memcpy_s(dst, size, src, size);
@@ -549,13 +550,13 @@ static uint32
 memmove_wrapper(wasm_exec_env_t exec_env, void *dst, void *src, uint32 size)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
-    uint32 dst_offset = addr_native_to_app(dst);
+    uint32 dst_offset = (uint32)addr_native_to_app(dst);
 
     if (size == 0)
         return dst_offset;
 
     /* src has been checked by runtime */
-    if (!validate_native_addr(dst, size))
+    if (!validate_native_addr(dst, (uint64)size))
         return dst_offset;
 
     memmove(dst, src, size);
@@ -566,9 +567,9 @@ static uint32
 memset_wrapper(wasm_exec_env_t exec_env, void *s, int32 c, uint32 size)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
-    uint32 s_offset = addr_native_to_app(s);
+    uint32 s_offset = (uint32)addr_native_to_app(s);
 
-    if (!validate_native_addr(s, size))
+    if (!validate_native_addr(s, (uint64)size))
         return s_offset;
 
     memset(s, c, size);
@@ -583,7 +584,7 @@ strchr_wrapper(wasm_exec_env_t exec_env, const char *s, int32 c)
 
     /* s has been checked by runtime */
     ret = strchr(s, c);
-    return ret ? addr_native_to_app(ret) : 0;
+    return ret ? (uint32)addr_native_to_app(ret) : 0;
 }
 
 static int32
@@ -602,7 +603,7 @@ strncmp_wrapper(wasm_exec_env_t exec_env, const char *s1, const char *s2,
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
 
     /* s2 has been checked by runtime */
-    if (!validate_native_addr((void *)s1, size))
+    if (!validate_native_addr((void *)s1, (uint64)size))
         return 0;
 
     return strncmp(s1, s2, size);
@@ -615,7 +616,7 @@ strcpy_wrapper(wasm_exec_env_t exec_env, char *dst, const char *src)
     uint32 len = (uint32)strlen(src) + 1;
 
     /* src has been checked by runtime */
-    if (!validate_native_addr(dst, len))
+    if (!validate_native_addr(dst, (uint64)len))
         return 0;
 
 #ifndef BH_PLATFORM_WINDOWS
@@ -623,7 +624,7 @@ strcpy_wrapper(wasm_exec_env_t exec_env, char *dst, const char *src)
 #else
     strncpy_s(dst, len, src, len);
 #endif
-    return addr_native_to_app(dst);
+    return (uint32)addr_native_to_app(dst);
 }
 
 static uint32
@@ -633,7 +634,7 @@ strncpy_wrapper(wasm_exec_env_t exec_env, char *dst, const char *src,
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
 
     /* src has been checked by runtime */
-    if (!validate_native_addr(dst, size))
+    if (!validate_native_addr(dst, (uint64)size))
         return 0;
 
 #ifndef BH_PLATFORM_WINDOWS
@@ -641,7 +642,7 @@ strncpy_wrapper(wasm_exec_env_t exec_env, char *dst, const char *src,
 #else
     strncpy_s(dst, size, src, size);
 #endif
-    return addr_native_to_app(dst);
+    return (uint32)addr_native_to_app(dst);
 }
 
 static uint32
@@ -657,7 +658,7 @@ static uint32
 malloc_wrapper(wasm_exec_env_t exec_env, uint32 size)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
-    return module_malloc(size, NULL);
+    return (uint32)module_malloc((uint64)size, NULL);
 }
 
 static uint32
@@ -671,7 +672,7 @@ calloc_wrapper(wasm_exec_env_t exec_env, uint32 nmemb, uint32 size)
     if (total_size >= UINT32_MAX)
         return 0;
 
-    ret_offset = module_malloc((uint32)total_size, (void **)&ret_ptr);
+    ret_offset = (uint32)module_malloc(total_size, (void **)&ret_ptr);
     if (ret_offset) {
         memset(ret_ptr, 0, (uint32)total_size);
     }
@@ -682,9 +683,12 @@ calloc_wrapper(wasm_exec_env_t exec_env, uint32 nmemb, uint32 size)
 static uint32
 realloc_wrapper(wasm_exec_env_t exec_env, uint32 ptr, uint32 new_size)
 {
+    uint64 ret_offset = 0;
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
 
-    return wasm_runtime_module_realloc(module_inst, ptr, new_size, NULL);
+    ret_offset = wasm_runtime_module_realloc(module_inst, ptr, new_size, NULL);
+    bh_assert(ret_offset < UINT32_MAX);
+    return (uint32)ret_offset;
 }
 
 static void
@@ -692,7 +696,7 @@ free_wrapper(wasm_exec_env_t exec_env, void *ptr)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
 
-    if (!validate_native_addr(ptr, sizeof(uint32)))
+    if (!validate_native_addr(ptr, (uint64)sizeof(uint32)))
         return;
 
     module_free(addr_native_to_app(ptr));
@@ -723,11 +727,11 @@ strtol_wrapper(wasm_exec_env_t exec_env, const char *nptr, char **endptr,
     int32 num = 0;
 
     /* nptr has been checked by runtime */
-    if (!validate_native_addr(endptr, sizeof(uint32)))
+    if (!validate_native_addr(endptr, (uint64)sizeof(uint32)))
         return 0;
 
     num = (int32)strtol(nptr, endptr, base);
-    *(uint32 *)endptr = addr_native_to_app(*endptr);
+    *(uint32 *)endptr = (uint32)addr_native_to_app(*endptr);
 
     return num;
 }
@@ -740,11 +744,11 @@ strtoul_wrapper(wasm_exec_env_t exec_env, const char *nptr, char **endptr,
     uint32 num = 0;
 
     /* nptr has been checked by runtime */
-    if (!validate_native_addr(endptr, sizeof(uint32)))
+    if (!validate_native_addr(endptr, (uint64)sizeof(uint32)))
         return 0;
 
     num = (uint32)strtoul(nptr, endptr, base);
-    *(uint32 *)endptr = addr_native_to_app(*endptr);
+    *(uint32 *)endptr = (uint32)addr_native_to_app(*endptr);
 
     return num;
 }
@@ -755,11 +759,11 @@ memchr_wrapper(wasm_exec_env_t exec_env, const void *s, int32 c, uint32 n)
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
     void *res;
 
-    if (!validate_native_addr((void *)s, n))
+    if (!validate_native_addr((void *)s, (uint64)n))
         return 0;
 
     res = memchr(s, c, n);
-    return addr_native_to_app(res);
+    return (uint32)addr_native_to_app(res);
 }
 
 static int32
@@ -796,7 +800,7 @@ strstr_wrapper(wasm_exec_env_t exec_env, const char *s, const char *find)
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
     /* s and find have been checked by runtime */
     char *res = strstr(s, find);
-    return addr_native_to_app(res);
+    return (uint32)addr_native_to_app(res);
 }
 
 static int32
@@ -884,10 +888,10 @@ emscripten_memcpy_big_wrapper(wasm_exec_env_t exec_env, void *dst,
                               const void *src, uint32 size)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
-    uint32 dst_offset = addr_native_to_app(dst);
+    uint32 dst_offset = (uint32)addr_native_to_app(dst);
 
     /* src has been checked by runtime */
-    if (!validate_native_addr(dst, size))
+    if (!validate_native_addr(dst, (uint64)size))
         return dst_offset;
 
     bh_memcpy_s(dst, size, src, size);
@@ -925,7 +929,7 @@ static uint32
 __cxa_allocate_exception_wrapper(wasm_exec_env_t exec_env, uint32 thrown_size)
 {
     wasm_module_inst_t module_inst = get_module_inst(exec_env);
-    uint32 exception = module_malloc(thrown_size, NULL);
+    uint32 exception = (uint32)module_malloc((uint64)thrown_size, NULL);
     if (!exception)
         return 0;
 
@@ -968,7 +972,7 @@ clock_gettime_wrapper(wasm_exec_env_t exec_env, uint32 clk_id,
 
     (void)clk_id;
 
-    if (!validate_native_addr(ts_app, sizeof(struct timespec_app)))
+    if (!validate_native_addr(ts_app, (uint64)sizeof(struct timespec_app)))
         return (uint32)-1;
 
     time = os_time_get_boot_us();
@@ -999,6 +1003,12 @@ static void
 print_i32_wrapper(wasm_exec_env_t exec_env, int32 i32)
 {
     os_printf("in specttest.print_i32(%" PRId32 ")\n", i32);
+}
+
+static void
+print_i64_wrapper(wasm_exec_env_t exec_env, int64 i64)
+{
+    os_printf("in specttest.print_i64(%" PRId64 ")\n", i64);
 }
 
 static void
@@ -1091,6 +1101,7 @@ static NativeSymbol native_symbols_libc_builtin[] = {
 static NativeSymbol native_symbols_spectest[] = {
     REG_NATIVE_FUNC(print, "()"),
     REG_NATIVE_FUNC(print_i32, "(i)"),
+    REG_NATIVE_FUNC(print_i64, "(I)"),
     REG_NATIVE_FUNC(print_i32_f32, "(if)"),
     REG_NATIVE_FUNC(print_f64_f64, "(FF)"),
     REG_NATIVE_FUNC(print_f32, "(f)"),
@@ -1136,6 +1147,11 @@ static WASMNativeGlobalDef native_global_defs[] = {
     { "test", "global-f32", VALUE_TYPE_F32, false, .value.f32 = 0 },
     { "test", "global-mut-i32", VALUE_TYPE_I32, true, .value.i32 = 0 },
     { "test", "global-mut-i64", VALUE_TYPE_I64, true, .value.i64 = 0 },
+    { "test", "g", VALUE_TYPE_I32, true, .value.i32 = 0 },
+#if WASM_ENABLE_GC != 0
+    { "G", "g", VALUE_TYPE_I32, false, .value.i32 = 4 },
+    { "M", "g", REF_TYPE_HT_NON_NULLABLE, false, .value.gc_obj = 0 },
+#endif
 #endif
     { "global", "NaN", VALUE_TYPE_F64, .value.u64 = 0x7FF8000000000000LL },
     { "global", "Infinity", VALUE_TYPE_F64, .value.u64 = 0x7FF0000000000000LL }
@@ -1157,8 +1173,8 @@ wasm_native_lookup_libc_builtin_global(const char *module_name,
     while (global_def < global_def_end) {
         if (!strcmp(global_def->module_name, module_name)
             && !strcmp(global_def->global_name, global_name)) {
-            global->type = global_def->type;
-            global->is_mutable = global_def->is_mutable;
+            global->type.val_type = global_def->type;
+            global->type.is_mutable = global_def->is_mutable;
             global->global_data_linked = global_def->value;
             return true;
         }

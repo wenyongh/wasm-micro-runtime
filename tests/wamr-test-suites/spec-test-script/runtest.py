@@ -55,9 +55,18 @@ aot_target_options_map = {
     "riscv32": ["--target=riscv32", "--target-abi=ilp32", "--cpu=generic-rv32", "--cpu-features=+m,+a,+c"],
     "riscv32_ilp32f": ["--target=riscv32", "--target-abi=ilp32f", "--cpu=generic-rv32", "--cpu-features=+m,+a,+c,+f"],
     "riscv32_ilp32d": ["--target=riscv32", "--target-abi=ilp32d", "--cpu=generic-rv32", "--cpu-features=+m,+a,+c,+f,+d"],
-    "riscv64": ["--target=riscv64", "--target-abi=lp64", "--cpu=generic-rv64", "--cpu-features=+m,+a,+c"],
-    "riscv64_lp64f": ["--target=riscv64", "--target-abi=lp64f", "--cpu=generic-rv64", "--cpu-features=+m,+a,+c,+f"],
-    "riscv64_lp64d": ["--target=riscv64", "--target-abi=lp64d", "--cpu=generic-rv64", "--cpu-features=+m,+a,+c,+f,+d"],
+    # RISCV64 requires -mcmodel=medany, which can be set by --size-level=1
+    "riscv64": ["--target=riscv64", "--target-abi=lp64", "--cpu=generic-rv64", "--cpu-features=+m,+a,+c", "--size-level=1"],
+    "riscv64_lp64f": ["--target=riscv64", "--target-abi=lp64f", "--cpu=generic-rv64", "--cpu-features=+m,+a,+c,+f", "--size-level=1"],
+    "riscv64_lp64d": ["--target=riscv64", "--target-abi=lp64d", "--cpu=generic-rv64", "--cpu-features=+m,+a,+c,+f,+d", "--size-level=1"],
+    "xtensa": ["--target=xtensa"],
+}
+
+# AOT compilation options mapping for XIP mode
+aot_target_options_map_xip = {
+    # avoid l32r relocations for xtensa
+    "xtensa": ["--mllvm=-mtext-section-literals"],
+    "riscv32_ilp32f": ["--enable-builtin-intrinsics=i64.common,f64.common,f32.const,f64.const,f64xi32,f64xi64,f64_promote_f32,f32_demote_f64"],
 }
 
 def debug(data):
@@ -271,6 +280,8 @@ parser.add_argument('--rundir',
         help="change to the directory before running tests")
 parser.add_argument('--start-timeout', default=30, type=int,
         help="default timeout for initial prompt")
+parser.add_argument('--start-fail-timeout', default=2, type=int,
+        help="default timeout for initial prompt (when expected to fail)")
 parser.add_argument('--test-timeout', default=20, type=int,
         help="default timeout for each individual test action")
 parser.add_argument('--no-pty', action='store_true',
@@ -312,6 +323,12 @@ parser.add_argument('--multi-thread', default=False, action='store_true',
 
 parser.add_argument('--gc', default=False, action='store_true',
         help='Test with GC')
+
+parser.add_argument('--memory64', default=False, action='store_true',
+        help='Test with Memory64')
+
+parser.add_argument('--multi-memory', default=False, action='store_true',
+        help='Test with multi-memory(with multi-module auto enabled)')
 
 parser.add_argument('--qemu', default=False, action='store_true',
         help="Enable QEMU")
@@ -626,7 +643,7 @@ def vector_value_comparison(out, expected):
         int(expected_val[1]) if not "0x" in expected_val[1] else int(expected_val[1], 16))
 
     if lane_type in ["i8x16", "i16x8", "i32x4", "i64x2"]:
-        return out_packed == expected_packed;
+        return out_packed == expected_packed
     else:
         assert(lane_type in ["f32x4", "f64x2"]), "unexpected lane_type"
 
@@ -817,7 +834,7 @@ def test_assert_return(r, opts, form):
             n = re.search('^\(assert_return\s+\(invoke\s+\$((?:[^\s])*)\s+"([^"]*)"*()()\)\s*\)\s*$', form, re.S)
     if not m and not n:
         if re.search('^\(assert_return\s+\(get.*\).*\)$', form, re.S):
-            log("ignoring assert_return get");
+            log("ignoring assert_return get")
             return
         else:
             raise Exception("unparsed assert_return: '%s'" % form)
@@ -825,6 +842,12 @@ def test_assert_return(r, opts, form):
         func = m.group(1)
         if ' ' in func:
             func = func.replace(' ', '\\')
+
+        # Note: 'as-memory.grow-first' doesn't actually grow memory.
+        # (thus not in this list)
+        if opts.qemu and opts.target == 'xtensa' and func in {'as-memory.grow-value', 'as-memory.grow-size', 'as-memory.grow-last', 'as-memory.grow-everywhere'}:
+            log("ignoring memory.grow test")
+            return
 
         if m.group(2) == '':
             args = []
@@ -898,6 +921,7 @@ def test_assert_return(r, opts, form):
             except:
                 _, exc, _ = sys.exc_info()
                 log("Run wamrc failed:\n  got: '%s'" % r.buf)
+                ret_code = 1
                 sys.exit(1)
         r = run_wasm_with_repl(module+".wasm", module+".aot" if test_aot else module, opts, r)
         # Wait for the initial prompt
@@ -963,6 +987,7 @@ def test_assert_trap(r, opts, form):
             except:
                 _, exc, _ = sys.exc_info()
                 log("Run wamrc failed:\n  got: '%s'" % r.buf)
+                ret_code = 1
                 sys.exit(1)
         r = run_wasm_with_repl(module+".wasm", module+".aot" if test_aot else module, opts, r)
         # Wait for the initial prompt
@@ -1072,9 +1097,13 @@ def compile_wast_to_wasm(form, wast_tempfile, wasm_tempfile, opts):
     if opts.gc:
         cmd = [opts.wast2wasm, "-u", "-d", wast_tempfile, "-o", wasm_tempfile]
     elif opts.eh:
-        cmd = [opts.wast2wasm, "--enable-thread", "--no-check", "--enable-exceptions", "--enable-tail-call", wast_tempfile, "-o", wasm_tempfile ]
+        cmd = [opts.wast2wasm, "--enable-threads", "--no-check", "--enable-exceptions", "--enable-tail-call", wast_tempfile, "-o", wasm_tempfile ]
+    elif opts.memory64:
+        cmd = [opts.wast2wasm, "--enable-memory64", "--no-check", wast_tempfile, "-o", wasm_tempfile ]
+    elif opts.multi_memory:
+        cmd = [opts.wast2wasm, "--enable-multi-memory", "--no-check", wast_tempfile, "-o", wasm_tempfile ]
     else:
-        cmd = [opts.wast2wasm, "--enable-thread", "--no-check",
+        cmd = [opts.wast2wasm, "--enable-threads", "--no-check",
                wast_tempfile, "-o", wasm_tempfile ]
 
     # remove reference-type and bulk-memory enabling options since a WABT
@@ -1091,7 +1120,7 @@ def compile_wast_to_wasm(form, wast_tempfile, wasm_tempfile, opts):
     return True
 
 def compile_wasm_to_aot(wasm_tempfile, aot_tempfile, runner, opts, r, output = 'default'):
-    log("Compiling AOT to '%s'" % aot_tempfile)
+    log("Compiling '%s' to '%s'" % (wasm_tempfile, aot_tempfile))
     cmd = [opts.aot_compiler]
 
     if test_target in aot_target_options_map:
@@ -1104,11 +1133,16 @@ def compile_wasm_to_aot(wasm_tempfile, aot_tempfile, runner, opts, r, output = '
         cmd.append("--disable-simd")
 
     if opts.xip:
-        cmd.append("--enable-indirect-mode")
-        cmd.append("--disable-llvm-intrinsics")
+        cmd.append("--xip")
+        if test_target in aot_target_options_map_xip:
+            cmd += aot_target_options_map_xip[test_target]
 
     if opts.multi_thread:
         cmd.append("--enable-multi-thread")
+
+    if opts.gc:
+        cmd.append("--enable-gc")
+        cmd.append("--enable-tail-call")
 
     if output == 'object':
         cmd.append("--format=object")
@@ -1122,14 +1156,11 @@ def compile_wasm_to_aot(wasm_tempfile, aot_tempfile, runner, opts, r, output = '
 
     # Bounds checks is disabled by default for 64-bit targets, to
     # use the hardware based bounds checks. But it is not supported
-    # in QEMU with NuttX.
-    # Enable bounds checks explicitly for all targets if running in QEMU.
-    if opts.qemu:
+    # in QEMU with NuttX and in memory64 mode.
+    # Enable bounds checks explicitly for all targets if running in QEMU or all targets
+    # running in memory64 mode.
+    if opts.qemu or opts.memory64:
         cmd.append("--bounds-checks=1")
-
-    # RISCV64 requires -mcmodel=medany, which can be set by --size-level=1
-    if test_target.startswith("riscv64"):
-        cmd.append("--size-level=1")
 
     cmd += ["-o", aot_tempfile, wasm_tempfile]
 
@@ -1146,10 +1177,28 @@ def run_wasm_with_repl(wasm_tempfile, aot_tempfile, opts, r):
     tmpfile = aot_tempfile if test_aot else wasm_tempfile
     log("Starting interpreter for module '%s'" % tmpfile)
 
-    cmd_iwasm = [opts.interpreter, "--heap-size=0", "-v=5" if opts.verbose else "-v=0", "--repl", tmpfile]
+    if opts.qemu:
+        tmpfile = f"/tmp/{os.path.basename(tmpfile)}"
 
+    cmd_iwasm = [opts.interpreter, "--heap-size=0", "--repl"]
     if opts.multi_module:
-        cmd_iwasm.insert(1, "--module-path=" + (tempfile.gettempdir() if not opts.qemu else "/tmp" ))
+        cmd_iwasm.append("--module-path=" + (tempfile.gettempdir() if not opts.qemu else "/tmp" ))
+    if opts.gc:
+        # our tail-call implementation is known broken.
+        # work it around by using a huge stack.
+        # cf. https://github.com/bytecodealliance/wasm-micro-runtime/issues/2231
+        cmd_iwasm.append("--stack-size=10485760")  # 10MB (!)
+    else:
+        if opts.aot:
+            # Note: aot w/o gc doesn't require the interpreter stack at all.
+            # Note: 1 is the minimum value we can specify because 0 means
+            # the default.
+            cmd_iwasm.append("--stack-size=1")
+        else:
+            cmd_iwasm.append("--stack-size=131072")  # 128KB
+    if opts.verbose:
+        cmd_iwasm.append("-v=5")
+    cmd_iwasm.append(tmpfile)
 
     if opts.qemu:
         if opts.qemu_firmware == '':
@@ -1167,6 +1216,8 @@ def run_wasm_with_repl(wasm_tempfile, aot_tempfile, opts, r):
         elif opts.target.startswith("riscv64"):
             cmd = "qemu-system-riscv64 -semihosting -M virt,aclint=on -cpu rv64 -smp 1 -nographic -bios none -kernel".split()
             cmd.append(opts.qemu_firmware)
+        elif opts.target.startswith("xtensa"):
+            cmd = f"qemu-system-xtensa -semihosting -nographic -serial mon:stdio -machine esp32s3 -drive file={opts.qemu_firmware},if=mtd,format=raw".split()
         else:
             raise Exception("Unknwon target for QEMU: %s" % opts.target)
 
@@ -1212,7 +1263,7 @@ def test_assert_with_exception(form, wast_tempfile, wasm_tempfile, aot_tempfile,
     if test_aot:
         r = compile_wasm_to_aot(wasm_tempfile, aot_tempfile, True, opts, r)
         try:
-            assert_prompt(r, ['Compile success'], opts.start_timeout, True)
+            assert_prompt(r, ['Compile success'], opts.start_fail_timeout, True)
         except:
             _, exc, _ = sys.exc_info()
             if (r.buf.find(expected) >= 0):
@@ -1223,6 +1274,7 @@ def test_assert_with_exception(form, wast_tempfile, wasm_tempfile, aot_tempfile,
             else:
                 log("Run wamrc failed:\n  expected: '%s'\n  got: '%s'" % \
                     (expected, r.buf))
+                ret_code = 1
                 sys.exit(1)
 
     r = run_wasm_with_repl(wasm_tempfile, aot_tempfile if test_aot else None, opts, r)
@@ -1232,7 +1284,7 @@ def test_assert_with_exception(form, wast_tempfile, wasm_tempfile, aot_tempfile,
     if loadable:
         # Wait for the initial prompt
         try:
-            assert_prompt(r, ['webassembly> '], opts.start_timeout, True)
+            assert_prompt(r, ['webassembly> '], opts.start_fail_timeout, True)
         except:
             _, exc, _ = sys.exc_info()
             if (r.buf.find(expected) >= 0):
@@ -1265,6 +1317,12 @@ if __name__ == "__main__":
     wasm_tempfile = create_tmp_file(".wasm")
     if test_aot:
         aot_tempfile = create_tmp_file(".aot")
+        # could be potientially compiled to aot
+        # with the future following call test_assert_xxx,
+        # add them to temp_file_repo now even if no actual following file,
+        # it will be simple ignore during final deletion if not exist
+        prefix = wasm_tempfile.split(".wasm")[0]
+        temp_file_repo.append(prefix + ".aot")
 
     ret_code = 0
     try:
@@ -1312,32 +1370,53 @@ if __name__ == "__main__":
                     if test_aot:
                         r = compile_wasm_to_aot(wasm_tempfile, aot_tempfile, True, opts, r)
                         try:
-                            assert_prompt(r, ['Compile success'], opts.start_timeout, True)
+                            assert_prompt(r, ['Compile success'], opts.start_fail_timeout, True)
                         except:
                             _, exc, _ = sys.exc_info()
                             if (r.buf.find(error_msg) >= 0):
                                 log("Out exception includes expected one, pass:")
                                 log("  Expected: %s" % error_msg)
                                 log("  Got: %s" % r.buf)
+                                continue
+                            # one case in binary.wast
+                            elif (error_msg == "unexpected end of section or function"
+                                  and r.buf.find("unexpected end")):
+                                continue
+                            # one case in binary.wast
+                            elif (error_msg == "invalid value type"
+                                  and r.buf.find("unexpected end")):
+                                continue
+                            # one case in binary.wast
+                            elif (error_msg == "integer too large"
+                                  and r.buf.find("tables cannot be shared")):
+                                continue
+                            # one case in binary.wast
+                            elif (error_msg == "zero byte expected"
+                                  and r.buf.find("unknown table")):
+                                continue
+                            # one case in binary.wast
+                            elif (error_msg == "invalid section id"
+                                  and r.buf.find("unexpected end of section or function")):
+                                continue
+                            # one case in binary.wast
+                            elif (error_msg == "illegal opcode"
+                                  and r.buf.find("unexpected end of section or function")):
+                                continue
+                            # one case in custom.wast
+                            elif (error_msg == "length out of bounds"
+                                  and r.buf.find("unexpected end")):
+                                continue
+                            # several cases in binary-leb128.wast
+                            elif (error_msg == "integer representation too long"
+                                  and r.buf.find("invalid section id")):
+                                continue
                             else:
                                 log("Run wamrc failed:\n  expected: '%s'\n  got: '%s'" % \
                                     (error_msg, r.buf))
-                            continue
+                                ret_code = 1
+                                sys.exit(1)
 
                     r = run_wasm_with_repl(wasm_tempfile, aot_tempfile if test_aot else None, opts, r)
-
-                    if (error_msg == "unexpected end of section or function"):
-                        # one case in binary.wast
-                        assert_prompt(r, ["unexpected end", error_msg], opts.start_timeout, True)
-                    elif (error_msg == "invalid value type"):
-                        # one case in binary.wast
-                        assert_prompt(r, ["unexpected end", error_msg], opts.start_timeout, True)
-                    elif (error_msg == "length out of bounds"):
-                        # one case in custom.wast
-                        assert_prompt(r, ["unexpected end", error_msg], opts.start_timeout, True)
-                    elif (error_msg == "integer representation too long"):
-                        # several cases in binary-leb128.wast
-                        assert_prompt(r, ["invalid section id", error_msg], opts.start_timeout, True)
 
                 elif re.match("^\(assert_malformed\s*\(module quote", form):
                     log("ignoring assert_malformed module quote")
@@ -1366,11 +1445,18 @@ if __name__ == "__main__":
 
                         if test_aot:
                             r = compile_wasm_to_aot(temp_files[1], temp_files[2], True, opts, r)
+                            # could be potientially compiled to aot
+                            # with the future following call test_assert_xxx,
+                            # add them to temp_file_repo now even if no actual following file,
+                            # it will be simple ignore during final deletion if not exist
+                            prefix = temp_files[1].split(".wasm")[0]
+                            temp_file_repo.append(prefix + ".aot")
                             try:
                                 assert_prompt(r, ['Compile success'], opts.start_timeout, False)
                             except:
                                 _, exc, _ = sys.exc_info()
                                 log("Run wamrc failed:\n  got: '%s'" % r.buf)
+                                ret_code = 1
                                 sys.exit(1)
                         temp_module_table[module_name] = temp_files[1]
                         r = run_wasm_with_repl(temp_files[1], temp_files[2] if test_aot else None, opts, r)
@@ -1385,6 +1471,7 @@ if __name__ == "__main__":
                         except:
                             _, exc, _ = sys.exc_info()
                             log("Run wamrc failed:\n  got: '%s'" % r.buf)
+                            ret_code = 1
                             sys.exit(1)
 
                     r = run_wasm_with_repl(wasm_tempfile, aot_tempfile if test_aot else None, opts, r)
@@ -1468,4 +1555,3 @@ if __name__ == "__main__":
             log("Leaving tempfiles: %s" % ([wast_tempfile, wasm_tempfile]))
 
         sys.exit(ret_code)
-        

@@ -9,6 +9,11 @@ if (NOT WAMR_BUILD_LIBC_WASI EQUAL 1)
     list(REMOVE_ITEM source_all
         ${PLATFORM_COMMON_POSIX_DIR}/posix_file.c
         ${PLATFORM_COMMON_POSIX_DIR}/posix_clock.c
+    )
+endif()
+
+if ((NOT WAMR_BUILD_LIBC_WASI EQUAL 1) AND (NOT WAMR_BUILD_DEBUG_INTERP EQUAL 1))
+    list(REMOVE_ITEM source_all
         ${PLATFORM_COMMON_POSIX_DIR}/posix_socket.c
     )
 else()
@@ -25,6 +30,7 @@ list (REMOVE_AT CMAKE_REQUIRED_DEFINITIONS 0)
 
 if(MREMAP_EXISTS)
     add_definitions (-DWASM_HAVE_MREMAP=1)
+    add_definitions (-D_GNU_SOURCE)
 else()
     add_definitions (-DWASM_HAVE_MREMAP=0)
     include (${CMAKE_CURRENT_LIST_DIR}/../memory/platform_api_memory.cmake)

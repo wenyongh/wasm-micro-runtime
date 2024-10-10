@@ -21,12 +21,6 @@ else ifeq ($(CONFIG_ARCH_X86_64),y)
 WAMR_BUILD_TARGET := X86_64
 else ifeq ($(CONFIG_ARCH_XTENSA),y)
 WAMR_BUILD_TARGET := XTENSA
-# RV64GC and RV32IM used in older
-# version NuttX
-else ifeq ($(CONFIG_ARCH_RV64GC),y)
-WAMR_BUILD_TARGET := RISCV64
-else ifeq ($(CONFIG_ARCH_RV32IM),y)
-WAMR_BUILD_TARGET := RISCV32
 else ifeq ($(CONFIG_ARCH_RV64),y)
 WAMR_BUILD_TARGET := RISCV64
 else ifeq ($(CONFIG_ARCH_RV32),y)
@@ -107,10 +101,10 @@ else ifeq (${WAMR_BUILD_TARGET}, RISCV32)
 
 ifeq (${CONFIG_ARCH_DPFPU},y)
   CFLAGS += -DBUILD_TARGET_RISCV32_ILP32D
-else ifneq (${CONFIG_ARCH_FPU},y)
-  CFLAGS += -DBUILD_TARGET_RISCV32_ILP32
+else ifeq (${CONFIG_ARCH_FPU},y)
+  CFLAGS += -DBUILD_TARGET_RISCV32_ILP32F
 else
-  $(error riscv32 ilp32f is unsupported)
+  CFLAGS += -DBUILD_TARGET_RISCV32_ILP32
 endif
 
   INVOKE_NATIVE += invokeNative_riscv.S
@@ -152,6 +146,12 @@ ifeq ($(CONFIG_INTERPRETERS_WAMR_AOT_WORD_ALIGN_READ),y)
 CFLAGS += -DWASM_ENABLE_WORD_ALIGN_READ=1
 else
 CFLAGS += -DWASM_ENABLE_WORD_ALIGN_READ=0
+endif
+
+ifeq ($(CONFIG_INTERPRETERS_WAMR_DYNAMIC_AOT_DEBUG),y)
+CFLAGS += -DWASM_ENABLE_DYNAMIC_AOT_DEBUG=1
+else
+CFLAGS += -DWASM_ENABLE_DYNAMIC_AOT_DEBUG=0
 endif
 
 ifeq ($(CONFIG_INTERPRETERS_WAMR_MEM_DUAL_BUS_MIRROR),y)
@@ -215,10 +215,23 @@ else
 CFLAGS += -DWASM_ENABLE_BULK_MEMORY=0
 endif
 
+ifeq ($(CONFIG_INTERPRETERS_WAMR_AOT_STACK_FRAME), y)
+CFLAGS += -DWASM_ENABLE_AOT_STACK_FRAME=1
+else
+CFLAGS += -DWASM_ENABLE_AOT_STACK_FRAME=0
+endif
+
 ifeq ($(CONFIG_INTERPRETERS_WAMR_PERF_PROFILING),y)
 CFLAGS += -DWASM_ENABLE_PERF_PROFILING=1
+CFLAGS += -DWASM_ENABLE_AOT_STACK_FRAME=1
 else
 CFLAGS += -DWASM_ENABLE_PERF_PROFILING=0
+endif
+
+ifeq ($(CONFIG_INTERPRETERS_WAMR_GC_PERF_PROFILING),y)
+CFLAGS += -DWASM_ENABLE_GC_PERF_PROFILING=1
+else
+CFLAGS += -DWASM_ENABLE_GC_PERF_PROFILING=0
 endif
 
 ifeq ($(CONFIG_INTERPRETERS_WAMR_MEMORY_PROFILING),y)
@@ -235,6 +248,7 @@ endif
 
 ifeq ($(CONFIG_INTERPRETERS_WAMR_DUMP_CALL_STACK),y)
 CFLAGS += -DWASM_ENABLE_DUMP_CALL_STACK=1
+CFLAGS += -DWASM_ENABLE_AOT_STACK_FRAME=1
 else
 CFLAGS += -DWASM_ENABLE_DUMP_CALL_STACK=0
 endif
@@ -304,6 +318,20 @@ else
 CFLAGS += -DWASM_ENABLE_LIB_WASI_THREADS=0
 endif
 
+ifeq ($(CONFIG_INTERPRETERS_WAMR_GC),y)
+CFLAGS += -DWASM_ENABLE_GC=1
+CSRCS += gc_common.c gc_type.c gc_object.c
+VPATH += $(IWASM_ROOT)/common/gc
+else
+CFLAGS += -DWASM_ENABLE_GC=0
+endif
+
+ifeq ($(CONFIG_INTERPRETERS_WAMR_GC_MANUALLY),y)
+CFLAGS += -DWASM_GC_MANUALLY=1
+else
+CFLAGS += -DWASM_GC_MANUALLY=0
+endif
+
 ifeq ($(CONFIG_INTERPRETERS_WAMR_LIB_PTHREAD),y)
 CFLAGS += -DWASM_ENABLE_LIB_PTHREAD=1
 CSRCS += lib_pthread_wrapper.c
@@ -345,6 +373,11 @@ CFLAGS += -DWASM_ENABLE_GLOBAL_HEAP_POOL=1
 CFLAGS += -DWASM_GLOBAL_HEAP_SIZE="$(CONFIG_INTERPRETERS_WAMR_GLOBAL_HEAP_POOL_SIZE) * 1024"
 else
 CFLAGS += -DWASM_ENABLE_GLOBAL_HEAP_POOL=0
+ifeq ($(CONFIG_INTERPRETERS_WAMR_MEM_ALLOC_WITH_USAGE),y)
+CFLAGS += -DWASM_MEM_ALLOC_WITH_USAGE=1
+else
+CFLAGS += -DWASM_MEM_ALLOC_WITH_USAGE=0
+endif
 endif
 
 ifeq ($(CONFIG_INTERPRETERS_WAMR_ENABLE_SPEC_TEST),y)
@@ -359,6 +392,12 @@ else
 CFLAGS += -DWASM_ENABLE_REF_TYPES=0
 endif
 
+ifeq ($(CONFIG_INTERPRETERS_WAMR_TAIL_CALL),y)
+CFLAGS += -DWASM_ENABLE_TAIL_CALL=1
+else
+CFLAGS += -DWASM_ENABLE_TAIL_CALL=0
+endif
+
 ifeq ($(CONFIG_INTERPRETERS_WAMR_ENABLE_EXCE_HANDLING),y)
 CFLAGS += -DWASM_ENABLE_EXCE_HANDLING=1
 CFLAGS += -DWASM_ENABLE_TAGS=1
@@ -367,7 +406,7 @@ CFLAGS += -DWASM_ENABLE_EXCE_HANDLING=0
 CFLAGS += -DWASM_ENABLE_TAGS=0
 endif
 
-CFLAGS += -Wno-strict-prototypes -Wno-shadow -Wno-unused-variable
+CFLAGS += -Wno-shadow -Wno-unused-variable
 CFLAGS += -Wno-int-conversion -Wno-implicit-function-declaration
 
 CFLAGS += -I${CORE_ROOT} \
@@ -396,13 +435,14 @@ CSRCS += nuttx_platform.c \
          ems_kfc.c \
          ems_alloc.c \
          ems_hmu.c \
+         ems_gc.c \
          bh_assert.c \
          bh_bitmap.c \
          bh_common.c \
          bh_hashmap.c \
          bh_list.c \
+         bh_leb128.c \
          bh_log.c \
-         bh_memutils.c \
          bh_queue.c \
          bh_vector.c \
          bh_read_file.c \
@@ -412,6 +452,7 @@ CSRCS += nuttx_platform.c \
          wasm_runtime_common.c \
          wasm_native.c \
          wasm_exec_env.c \
+         wasm_loader_common.c \
          wasm_memory.c \
          wasm_c_api.c
 

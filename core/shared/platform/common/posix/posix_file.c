@@ -26,7 +26,7 @@
  * (platform_internal.h)
  */
 #if !defined(CONFIG_HAS_D_INO)
-#if !defined(__NuttX__)
+#if !defined(__NuttX__) && !defined(__RTTHREAD__)
 #define CONFIG_HAS_D_INO 1
 #define CONFIG_HAS_ISATTY 1
 #else
@@ -52,6 +52,18 @@
 
 #if defined(O_SYNC)
 #define CONFIG_HAS_O_SYNC
+#endif
+
+#ifndef STDIN_FILENO
+#define STDIN_FILENO 0
+#endif
+
+#ifndef STDOUT_FILENO
+#define STDOUT_FILENO 1
+#endif
+
+#ifndef STDERR_FILENO
+#define STDERR_FILENO 2
 #endif
 
 // Converts a POSIX timespec to a WASI timestamp.
@@ -384,7 +396,7 @@ os_openat(os_file_handle handle, const char *path, __wasi_oflags_t oflags,
         // Linux returns ENXIO instead of EOPNOTSUPP when opening a socket.
         if (openat_errno == ENXIO) {
             struct stat sb;
-            int ret = fstatat(fd, path, &sb,
+            int ret = fstatat(handle, path, &sb,
                               (lookup_flags & __WASI_LOOKUP_SYMLINK_FOLLOW)
                                   ? 0
                                   : AT_SYMLINK_NOFOLLOW);
@@ -396,7 +408,7 @@ os_openat(os_file_handle handle, const char *path, __wasi_oflags_t oflags,
         if (openat_errno == ENOTDIR
             && (open_flags & (O_NOFOLLOW | O_DIRECTORY)) != 0) {
             struct stat sb;
-            int ret = fstatat(fd, path, &sb, AT_SYMLINK_NOFOLLOW);
+            int ret = fstatat(handle, path, &sb, AT_SYMLINK_NOFOLLOW);
             if (S_ISLNK(sb.st_mode)) {
                 return __WASI_ELOOP;
             }
@@ -823,7 +835,7 @@ os_fadvise(os_file_handle handle, __wasi_filesize_t offset,
 
     int ret = posix_fadvise(handle, (off_t)offset, (off_t)length, nadvice);
 
-    if (ret < 0)
+    if (ret != 0)
         return convert_errno(ret);
 
     return __WASI_ESUCCESS;
@@ -858,30 +870,39 @@ os_isatty(os_file_handle handle)
 #endif
 }
 
+bool
+os_is_stdin_handle(os_file_handle fd)
+{
+    return fd == STDIN_FILENO;
+}
+
+bool
+os_is_stdout_handle(os_file_handle fd)
+{
+    return fd == STDOUT_FILENO;
+}
+
+bool
+os_is_stderr_handle(os_file_handle fd)
+{
+    return fd == STDERR_FILENO;
+}
+
 os_file_handle
 os_convert_stdin_handle(os_raw_file_handle raw_stdin)
 {
-#ifndef STDIN_FILENO
-#define STDIN_FILENO 0
-#endif
     return raw_stdin >= 0 ? raw_stdin : STDIN_FILENO;
 }
 
 os_file_handle
 os_convert_stdout_handle(os_raw_file_handle raw_stdout)
 {
-#ifndef STDOUT_FILENO
-#define STDOUT_FILENO 1
-#endif
     return raw_stdout >= 0 ? raw_stdout : STDOUT_FILENO;
 }
 
 os_file_handle
 os_convert_stderr_handle(os_raw_file_handle raw_stderr)
 {
-#ifndef STDERR_FILENO
-#define STDERR_FILENO 2
-#endif
     return raw_stderr >= 0 ? raw_stderr : STDERR_FILENO;
 }
 
@@ -920,7 +941,12 @@ os_readdir(os_dir_stream dir_stream, __wasi_dirent_t *entry,
 
     if (dent == NULL) {
         *d_name = NULL;
-        return convert_errno(errno);
+        if (errno != 0) {
+            return convert_errno(errno);
+        }
+        else {
+            return 0;
+        }
     }
 
     long offset = (__wasi_dircookie_t)telldir(dir_stream);
