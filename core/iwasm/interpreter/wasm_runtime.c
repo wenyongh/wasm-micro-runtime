@@ -678,6 +678,8 @@ tables_instantiate(const WASMModule *module, WASMModuleInstance *module_inst,
            uninitialized elements */
 #endif
 
+        table->is_table64 = import->u.table.table_type.flags & TABLE64_FLAG;
+
 #if WASM_ENABLE_MULTI_MODULE != 0
         *table_linked = table_inst_linked;
         if (table_inst_linked != NULL) {
@@ -736,6 +738,7 @@ tables_instantiate(const WASMModule *module, WASMModuleInstance *module_inst,
         /* For GC, all elements have already been set to NULL_REF (0) as
            uninitialized elements */
 #endif
+        table->is_table64 = module->tables[i].table_type.flags & TABLE64_FLAG;
         table->elem_type = module->tables[i].table_type.elem_type;
 #if WASM_ENABLE_GC != 0
         table->elem_ref_type.elem_ref_type =
@@ -1594,8 +1597,12 @@ execute_post_instantiate_functions(WASMModuleInstance *module_inst,
     if (is_sub_inst) {
         bh_assert(exec_env_main);
 #ifdef OS_ENABLE_HW_BOUND_CHECK
-        bh_assert(exec_env_tls == exec_env_main);
-        (void)exec_env_tls;
+        /* May come from pthread_create_wrapper, thread_spawn_wrapper and
+           wasm_cluster_spawn_exec_env. If it comes from the former two,
+           the exec_env_tls must be not NULL and equal to exec_env_main,
+           else if it comes from the last one, it may be NULL. */
+        if (exec_env_tls)
+            bh_assert(exec_env_tls == exec_env_main);
 #endif
         exec_env = exec_env_main;
 

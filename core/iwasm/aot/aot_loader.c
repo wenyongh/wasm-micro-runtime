@@ -1382,6 +1382,12 @@ load_table_list(const uint8 **p_buf, const uint8 *buf_end, AOTModule *module,
     for (i = 0; i < module->table_count; i++, table++) {
         read_uint8(buf, buf_end, table->table_type.elem_type);
         read_uint8(buf, buf_end, table->table_type.flags);
+
+        if (!wasm_table_check_flags(table->table_type.flags, error_buf,
+                                    error_buf_size, true)) {
+            return false;
+        }
+
         read_uint8(buf, buf_end, table->table_type.possible_grow);
 #if WASM_ENABLE_GC != 0
         if (wasm_is_type_multi_byte_type(table->table_type.elem_type)) {
@@ -2520,7 +2526,7 @@ try_merge_data_and_text(const uint8 **buf, const uint8 **buf_end,
     /* order not essential just as compiler does: .text section first */
     *buf = sections;
     *buf_end = sections + code_size;
-    bh_memcpy_s(sections, code_size, old_buf, code_size);
+    bh_memcpy_s(sections, (uint32)code_size, old_buf, (uint32)code_size);
     os_munmap(old_buf, code_size);
     sections += align_uint((uint32)code_size, page_size);
 
