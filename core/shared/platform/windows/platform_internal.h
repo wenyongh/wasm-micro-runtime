@@ -103,12 +103,19 @@ os_mem_decommit(void *ptr, size_t size);
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
 
-#if WASM_DISABLE_HW_BOUND_CHECK == 0
 #if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64)
+#if WASM_DISABLE_MEM_HW_BOUND_CHECK == 0
+#define OS_ENABLE_MEM_HW_BOUND_CHECK
+#endif
+#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#define OS_ENABLE_STACK_HW_BOUND_CHECK
+#endif
+#endif
+
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 
 #include <setjmp.h>
-
-#define OS_ENABLE_HW_BOUND_CHECK
 
 typedef jmp_buf korp_jmpbuf;
 
@@ -116,19 +123,19 @@ typedef jmp_buf korp_jmpbuf;
 #define os_longjmp longjmp
 
 int
-os_thread_signal_init();
+os_thread_signal_init(void);
 
 void
-os_thread_signal_destroy();
+os_thread_signal_destroy(void);
 
 bool
-os_thread_signal_inited();
+os_thread_signal_inited(void);
 
 #define os_signal_unmask() (void)0
 #define os_sigreturn() (void)0
 
-#endif /* end of BUILD_TARGET_X86_64/AMD_64 */
-#endif /* end of WASM_DISABLE_HW_BOUND_CHECK */
+#endif /* end of defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+                 || defined(OS_ENABLE_STACK_HW_BOUND_CHECK) */
 
 typedef enum os_memory_order {
     os_memory_order_relaxed,

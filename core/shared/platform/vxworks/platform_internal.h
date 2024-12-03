@@ -65,13 +65,25 @@ typedef int os_file_handle;
 typedef DIR *os_dir_stream;
 typedef int os_raw_file_handle;
 
-#if WASM_DISABLE_HW_BOUND_CHECK == 0
-#if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64) \
-    || defined(BUILD_TARGET_AARCH64)
+#if defined(BUILD_TARGET_X86_64) || defined(BUILD_TARGET_AMD_64)            \
+    || defined(BUILD_TARGET_AARCH64) || defined(BUILD_TARGET_RISCV64_LP64D) \
+    || defined(BUILD_TARGET_RISCV64_LP64)
+/* Enable wasm memory boundary check with hardware trap
+   on these 64-bit targets */
+#if WASM_DISABLE_MEM_HW_BOUND_CHECK == 0
+#define OS_ENABLE_MEM_HW_BOUND_CHECK
+#endif
+/* Enable native stack boundary check with hardware trap
+   on these 64-bit targets */
+#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#define OS_ENABLE_STACK_HW_BOUND_CHECK
+#endif
+#endif
+
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 
 #include <setjmp.h>
-
-#define OS_ENABLE_HW_BOUND_CHECK
 
 typedef jmp_buf korp_jmpbuf;
 
@@ -85,18 +97,18 @@ int
 os_thread_signal_init(os_signal_handler handler);
 
 void
-os_thread_signal_destroy();
+os_thread_signal_destroy(void);
 
 bool
-os_thread_signal_inited();
+os_thread_signal_inited(void);
 
 void
-os_signal_unmask();
+os_signal_unmask(void);
 
 void
-os_sigreturn();
-#endif /* end of BUILD_TARGET_X86_64/AMD_64/AARCH64 */
-#endif /* end of WASM_DISABLE_HW_BOUND_CHECK */
+os_sigreturn(void);
+#endif /* end of defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+                 || defined(OS_ENABLE_STACK_HW_BOUND_CHECK) */
 
 #define os_getpagesize getpagesize
 

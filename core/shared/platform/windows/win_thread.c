@@ -199,7 +199,8 @@ static unsigned __stdcall os_thread_wrapper(void *arg)
     os_mutex_lock(&parent->wait_lock);
     thread_data->thread_id = GetCurrentThreadId();
     result = TlsSetValue(thread_data_key, thread_data);
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (result)
         result = os_thread_signal_init() == 0 ? true : false;
 #endif
@@ -772,13 +773,14 @@ void
 os_thread_jit_write_protect_np(bool enabled)
 {}
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 static os_thread_local_attribute bool thread_signal_inited = false;
 
 int
-os_thread_signal_init()
+os_thread_signal_init(void)
 {
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     ULONG StackSizeInBytes = 16 * 1024;
 #endif
     bool ret;
@@ -786,7 +788,7 @@ os_thread_signal_init()
     if (thread_signal_inited)
         return 0;
 
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     ret = SetThreadStackGuarantee(&StackSizeInBytes);
 #else
     ret = true;
@@ -797,13 +799,13 @@ os_thread_signal_init()
 }
 
 void
-os_thread_signal_destroy()
+os_thread_signal_destroy(void)
 {
     /* Do nothing */
 }
 
 bool
-os_thread_signal_inited()
+os_thread_signal_inited(void)
 {
     return thread_signal_inited;
 }

@@ -24,7 +24,7 @@ void *
 canary_addr()
 {
     uint8_t *p = os_thread_get_stack_boundary();
-#if defined(OS_ENABLE_HW_BOUND_CHECK) && WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#if defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     uint32_t page_size = os_getpagesize();
     uint32_t guard_page_count = STACK_OVERFLOW_CHECK_GUARD_PAGE_COUNT;
     return p + page_size * guard_page_count;

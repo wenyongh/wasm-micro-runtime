@@ -144,12 +144,14 @@ os_get_invalid_handle(void)
 
 #define os_thread_local_attribute __thread
 
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
 #if defined(BUILD_TARGET_X86_32) || defined(BUILD_TARGET_AMD_32)  \
     || defined(BUILD_TARGET_ARM) || defined(BUILD_TARGET_ARM_VFP) \
     || defined(BUILD_TARGET_RISCV32_ILP32)                        \
     || defined(BUILD_TARGET_RISCV32_ILP32D)                       \
     || defined(BUILD_TARGET_RISCV32_ILP32F) || defined(BUILD_TARGET_XTENSA)
+/* Enable native stack boundary check with hardware trap
+   on these 32-bit targets */
+#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
 #define OS_ENABLE_STACK_HW_BOUND_CHECK
 #endif
 #endif
@@ -171,16 +173,16 @@ int
 os_thread_signal_init(os_signal_handler handler);
 
 void
-os_thread_signal_destroy();
+os_thread_signal_destroy(void);
 
 bool
-os_thread_signal_inited();
+os_thread_signal_inited(void);
 
 void
-os_signal_unmask();
+os_signal_unmask(void);
 
 void
-os_sigreturn();
+os_sigreturn(void);
 #endif /* end of defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
                  || defined(OS_ENABLE_STACK_HW_BOUND_CHECK) */
 

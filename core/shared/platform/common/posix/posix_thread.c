@@ -740,7 +740,7 @@ fail1:
 }
 
 void
-os_thread_signal_destroy()
+os_thread_signal_destroy(void)
 {
     if (!thread_signal_inited)
         return;
@@ -758,19 +758,19 @@ os_thread_signal_destroy()
 }
 
 bool
-os_thread_signal_inited()
+os_thread_signal_inited(void)
 {
     return thread_signal_inited;
 }
 
 void
-os_signal_unmask()
+os_signal_unmask(void)
 {
     mask_signals(SIG_UNBLOCK);
 }
 
 void
-os_sigreturn()
+os_sigreturn(void)
 {
 #ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
 #if defined(__APPLE__)

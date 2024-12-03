@@ -115,7 +115,7 @@ threads are controlled by a build-time configuration.
 (`APP_THREAD_STACK_SIZE_DEFAULT`)
 
 In some configurations, runtime overflow can be detected using hardware traps.
-(`OS_ENABLE_HW_BOUND_CHECK`)
+(`OS_ENABLE_MEM_HW_BOUND_CHECK` and `OS_ENABLE_STACK_HW_BOUND_CHECK`)
 
 In some configurations, explicit overflow detection logic can be emitted
 into AOT modules themselves. (cf. `os_thread_get_stack_boundary`,

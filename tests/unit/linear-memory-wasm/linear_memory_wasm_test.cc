@@ -28,7 +28,7 @@ get_binary_path()
     return std::string(cwd);
 }
 
-#if WASM_DISABLE_HW_BOUND_CHECK != 0
+#if WASM_DISABLE_MEM_HW_BOUND_CHECK != 0
 #define TEST_SUITE_NAME linear_memory_test_suite_wasm_no_hw_bound
 #else
 #define TEST_SUITE_NAME linear_memory_test_suite_wasm
@@ -164,7 +164,7 @@ TEST_F(TEST_SUITE_NAME, test_wasm_mem_page_count)
         EXPECT_NE(nullptr, tmp_module_env.wasm_module);
         EXPECT_NE(nullptr, tmp_module_env.wasm_file_buf);
 
-#if WASM_DISABLE_HW_BOUND_CHECK == 0
+#if WASM_DISABLE_MEM_HW_BOUND_CHECK == 0
         EXPECT_NE(nullptr, tmp_module_env.exec_env);
         EXPECT_NE(nullptr, tmp_module_env.wasm_module_inst);
 #endif
