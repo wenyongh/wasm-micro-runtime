@@ -541,7 +541,7 @@ touch_pages(uint8 *stack_min_addr, uint32 page_size)
 #endif
 
 static bool
-init_stack_guard_pages()
+init_stack_guard_pages(void)
 {
     uint32 page_size = os_getpagesize();
     uint32 guard_page_count = STACK_OVERFLOW_CHECK_GUARD_PAGE_COUNT;
@@ -563,7 +563,7 @@ init_stack_guard_pages()
 }
 
 static void
-destroy_stack_guard_pages()
+destroy_stack_guard_pages(void)
 {
     uint32 page_size = os_getpagesize();
     uint32 guard_page_count = STACK_OVERFLOW_CHECK_GUARD_PAGE_COUNT;
@@ -617,7 +617,11 @@ __attribute__((no_sanitize_address))
 static void
 signal_callback(int sig_num, siginfo_t *sig_info, void *sig_ucontext)
 {
+#ifndef BH_PLATFORM_NUTTX
     void *sig_addr = sig_info->si_addr;
+#else
+    void *sig_addr = sig_info->si_value.sival_ptr;
+#endif
     struct sigaction *prev_sig_act = NULL;
 
     mask_signals(SIG_BLOCK);
