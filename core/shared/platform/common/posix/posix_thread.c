@@ -18,12 +18,14 @@
 typedef struct {
     thread_start_routine_t start;
     void *arg;
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     os_signal_handler signal_handler;
 #endif
 } thread_wrapper_arg;
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 /* The signal handler passed to os_thread_signal_init() */
 static os_thread_local_attribute os_signal_handler signal_handler;
 #endif
@@ -34,7 +36,8 @@ os_thread_wrapper(void *arg)
     thread_wrapper_arg *targ = arg;
     thread_start_routine_t start_func = targ->start;
     void *thread_arg = targ->arg;
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     os_signal_handler handler = targ->signal_handler;
 #endif
 
@@ -42,7 +45,8 @@ os_thread_wrapper(void *arg)
     os_printf("THREAD CREATED %jx\n", (uintmax_t)(uintptr_t)pthread_self());
 #endif
     BH_FREE(targ);
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (os_thread_signal_init(handler) != 0)
         return NULL;
 #endif
@@ -57,7 +61,8 @@ os_thread_wrapper(void *arg)
 #endif
 #endif
     start_func(thread_arg);
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     os_thread_signal_destroy();
 #endif
     return NULL;
@@ -92,7 +97,8 @@ os_thread_create_with_prio(korp_tid *tid, thread_start_routine_t start,
 
     targ->start = start;
     targ->arg = arg;
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     targ->signal_handler = signal_handler;
 #endif
 
@@ -412,7 +418,8 @@ os_thread_detach(korp_tid thread)
 void
 os_thread_exit(void *retval)
 {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     os_thread_signal_destroy();
 #endif
     return pthread_exit(retval);
@@ -490,18 +497,10 @@ os_thread_jit_write_protect_np(bool enabled)
 #endif
 }
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
 
 #define SIG_ALT_STACK_SIZE (32 * 1024)
 
-/**
- * Whether thread signal enviornment is initialized:
- *   the signal handler is registered, the stack pages are touched,
- *   the stack guard pages are set and signal alternate stack are set.
- */
-static os_thread_local_attribute bool thread_signal_inited = false;
-
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
 /* The signal alternate stack base addr */
 static os_thread_local_attribute uint8 *sigalt_stack_base_addr;
 /* The previous signal alternate stack */
@@ -573,7 +572,17 @@ destroy_stack_guard_pages()
     os_mprotect(stack_min_addr, page_size * guard_page_count,
                 MMAP_PROT_READ | MMAP_PROT_WRITE);
 }
-#endif /* end of WASM_DISABLE_STACK_HW_BOUND_CHECK == 0 */
+#endif /* end of OS_ENABLE_STACK_HW_BOUND_CHECK */
+
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
+
+/**
+ * Whether thread signal enviornment is initialized:
+ *   the signal handler is registered, the stack pages are touched,
+ *   the stack guard pages are set and signal alternate stack are set.
+ */
+static os_thread_local_attribute bool thread_signal_inited = false;
 
 /*
  * ASAN is not designed to work with custom stack unwind or other low-level
@@ -658,7 +667,7 @@ int
 os_thread_signal_init(os_signal_handler handler)
 {
     struct sigaction sig_act;
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     stack_t sigalt_stack_info;
     uint32 map_size = SIG_ALT_STACK_SIZE;
     uint8 *map_addr;
@@ -667,7 +676,7 @@ os_thread_signal_init(os_signal_handler handler)
     if (thread_signal_inited)
         return 0;
 
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     if (!init_stack_guard_pages()) {
         os_printf("Failed to init stack guard pages\n");
         return -1;
@@ -699,7 +708,7 @@ os_thread_signal_init(os_signal_handler handler)
     /* Install signal hanlder */
     sig_act.sa_sigaction = signal_callback;
     sig_act.sa_flags = SA_SIGINFO | SA_NODEFER;
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     sig_act.sa_flags |= SA_ONSTACK;
 #endif
     sigemptyset(&sig_act.sa_mask);
@@ -709,7 +718,7 @@ os_thread_signal_init(os_signal_handler handler)
         goto fail3;
     }
 
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     sigalt_stack_base_addr = map_addr;
 #endif
     signal_handler = handler;
@@ -717,7 +726,7 @@ os_thread_signal_init(os_signal_handler handler)
     return 0;
 
 fail3:
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     memset(&sigalt_stack_info, 0, sizeof(stack_t));
     sigalt_stack_info.ss_flags = SS_DISABLE;
     sigalt_stack_info.ss_size = map_size;
@@ -736,7 +745,7 @@ os_thread_signal_destroy()
     if (!thread_signal_inited)
         return;
 
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     /* Restore the previous signal alternate stack */
     sigaltstack(&prev_sigalt_stack, NULL);
 
@@ -763,7 +772,7 @@ os_signal_unmask()
 void
 os_sigreturn()
 {
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
 #if defined(__APPLE__)
 #define UC_RESET_ALT_STACK 0x80000000
     extern int __sigreturn(void *, int);
@@ -774,4 +783,5 @@ os_sigreturn()
 #endif
 #endif
 }
-#endif /* end of OS_ENABLE_HW_BOUND_CHECK */
+#endif /* end of defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+                 || defined(OS_ENABLE_STACK_HW_BOUND_CHECK) */

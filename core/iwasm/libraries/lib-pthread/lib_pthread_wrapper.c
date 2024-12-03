@@ -530,7 +530,8 @@ pthread_start_routine(void *arg)
     }
     else {
         info_node->u.ret = (void *)(uintptr_t)argv[0];
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         if (WASM_SUSPEND_FLAGS_GET(exec_env->suspend_flags)
             & WASM_SUSPEND_FLAG_EXIT)
             /* argv[0] isn't set after longjmp(1) to
@@ -780,7 +781,9 @@ pthread_exit_wrapper(wasm_exec_env_t exec_env, int32 retval_offset)
     if (!args)
         return;
 
-#if defined(OS_ENABLE_HW_BOUND_CHECK) && !defined(BH_PLATFORM_WINDOWS)
+#if (defined(OS_ENABLE_MEM_HW_BOUND_CHECK)       \
+     || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)) \
+    && !defined(BH_PLATFORM_WINDOWS)
     /* If hardware bound check enabled, don't deinstantiate module inst
        and thread info node here for AoT module, as they will be freed
        in pthread_start_routine */

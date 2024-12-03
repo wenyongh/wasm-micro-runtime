@@ -53,7 +53,7 @@ typedef float64 CellType_F64;
 #define CHECK_SHARED_HEAP_OVERFLOW(app_addr, bytes, native_addr)
 #endif
 
-#if !defined(OS_ENABLE_HW_BOUND_CHECK) \
+#if !defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
     || WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0
 #define CHECK_MEMORY_OVERFLOW(bytes)                                           \
     do {                                                                       \
@@ -92,7 +92,7 @@ typedef float64 CellType_F64;
         CHECK_SHARED_HEAP_OVERFLOW(offset1, bytes, maddr) \
         maddr = memory->memory_data + offset1;            \
     } while (0)
-#endif /* !defined(OS_ENABLE_HW_BOUND_CHECK) \
+#endif /* !defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
           || WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0 */
 
 #define CHECK_ATOMIC_MEMORY_ACCESS(align)          \
@@ -1470,7 +1470,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                                WASMInterpFrame *prev_frame)
 {
     WASMMemoryInstance *memory = wasm_get_default_memory(module);
-#if !defined(OS_ENABLE_HW_BOUND_CHECK)              \
+#if !defined(OS_ENABLE_MEM_HW_BOUND_CHECK)          \
     || WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0 \
     || WASM_ENABLE_BULK_MEMORY != 0
     uint64 linear_mem_size = 0;
@@ -1509,7 +1509,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
     uint8 *maddr = NULL;
     uint32 local_idx, local_offset, global_idx;
     uint8 opcode = 0, local_type, *global_addr;
-#if !defined(OS_ENABLE_HW_BOUND_CHECK) \
+#if !defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
     || WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0
 #if WASM_CONFIGURABLE_BOUNDS_CHECKS != 0
     bool disable_bounds_checks = !wasm_runtime_is_bounds_checks_enabled(
@@ -3900,7 +3900,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                     frame_lp[addr_ret] = prev_page_count;
                     /* update memory size, no need to update memory ptr as
                        it isn't changed in wasm_enlarge_memory */
-#if !defined(OS_ENABLE_HW_BOUND_CHECK)              \
+#if !defined(OS_ENABLE_MEM_HW_BOUND_CHECK)          \
     || WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0 \
     || WASM_ENABLE_BULK_MEMORY != 0
                     linear_mem_size = GET_LINEAR_MEMORY_SIZE(memory);
@@ -5035,7 +5035,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                         linear_mem_size = get_linear_mem_size();
 #endif
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
                         CHECK_BULK_MEMORY_OVERFLOW(addr, bytes, maddr);
 #else
 #if WASM_ENABLE_SHARED_HEAP != 0
@@ -5094,14 +5094,14 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
 
                         dlen = linear_mem_size - dst;
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
                         CHECK_BULK_MEMORY_OVERFLOW(src, len, msrc);
                         CHECK_BULK_MEMORY_OVERFLOW(dst, len, mdst);
 #if WASM_ENABLE_SHARED_HEAP != 0
                         if (app_addr_in_shared_heap((uint64)dst, len))
                             dlen = shared_heap_end_off - dst + 1;
 #endif
-#else /* else of OS_ENABLE_HW_BOUND_CHECK */
+#else /* else of OS_ENABLE_MEM_HW_BOUND_CHECK */
 #if WASM_ENABLE_SHARED_HEAP != 0
                         if (app_addr_in_shared_heap((uint64)src, len))
                             shared_heap_addr_app_to_native((uint64)src, msrc);
@@ -5125,7 +5125,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                                 goto out_of_bounds;
                             mdst = memory->memory_data + (uint32)dst;
                         }
-#endif /* end of OS_ENABLE_HW_BOUND_CHECK */
+#endif /* end of OS_ENABLE_MEM_HW_BOUND_CHECK */
 
                         /* allowing the destination and source to overlap */
                         bh_memmove_s(mdst, (uint32)dlen, msrc, len);
@@ -5144,7 +5144,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
                         linear_mem_size = get_linear_mem_size();
 #endif
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
                         CHECK_BULK_MEMORY_OVERFLOW(dst, len, mdst);
 #else
 #if WASM_ENABLE_SHARED_HEAP != 0
@@ -5990,7 +5990,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
 
             /* update memory size, no need to update memory ptr as
                it isn't changed in wasm_enlarge_memory */
-#if !defined(OS_ENABLE_HW_BOUND_CHECK)              \
+#if !defined(OS_ENABLE_MEM_HW_BOUND_CHECK)          \
     || WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0 \
     || WASM_ENABLE_BULK_MEMORY != 0
             if (memory)
@@ -6102,7 +6102,7 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
         goto got_exception;
 #endif
 
-#if !defined(OS_ENABLE_HW_BOUND_CHECK)              \
+#if !defined(OS_ENABLE_MEM_HW_BOUND_CHECK)          \
     || WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS == 0 \
     || WASM_ENABLE_BULK_MEMORY != 0
     out_of_bounds:
@@ -6206,7 +6206,7 @@ wasm_interp_call_wasm(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
     argc = function->param_cell_num;
 
-#if defined(OS_ENABLE_HW_BOUND_CHECK) && WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     /*
      * wasm_runtime_detect_native_stack_overflow is done by
      * call_wasm_with_hw_bound_check.

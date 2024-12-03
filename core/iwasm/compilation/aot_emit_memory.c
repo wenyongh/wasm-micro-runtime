@@ -275,14 +275,16 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
     /* offset1 = offset + addr; */
     BUILD_OP(Add, offset_const, addr, offset1, "offset1");
 
-    if (is_memory64 && comp_ctx->enable_bound_check) {
+    if (is_memory64 && comp_ctx->enable_mem_bound_check && offset > 0) {
         /* Check whether integer overflow occurs in offset + addr */
         LLVMBasicBlockRef check_integer_overflow_end;
         ADD_BASIC_BLOCK(check_integer_overflow_end,
                         "check_integer_overflow_end");
         LLVMMoveBasicBlockAfter(check_integer_overflow_end, block_curr);
 
-        BUILD_ICMP(LLVMIntULT, offset1, offset_const, cmp1, "cmp1");
+        LLVMValueRef max_addr = I64_CONST(UINT64_MAX - (uint64)offset);
+        CHECK_LLVM_CONST(max_addr);
+        BUILD_ICMP(LLVMIntUGT, addr, max_addr, cmp1, "cmp1");
         if (!aot_emit_exception(comp_ctx, func_ctx,
                                 EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, true, cmp1,
                                 check_integer_overflow_end)) {
@@ -316,14 +318,16 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
 
         LLVMPositionBuilderAtEnd(comp_ctx->builder, block_curr);
 
-        if (!is_target_64bit) {
+        if (!is_target_64bit && offset > 0) {
             /* Check whether integer overflow occurs in addr + offset */
             LLVMBasicBlockRef check_integer_overflow_end;
             ADD_BASIC_BLOCK(check_integer_overflow_end,
                             "check_integer_overflow_end");
             LLVMMoveBasicBlockAfter(check_integer_overflow_end, block_curr);
 
-            BUILD_ICMP(LLVMIntULT, offset1, addr, cmp1, "cmp1");
+            LLVMValueRef max_addr = I32_CONST(UINT32_MAX - (uint32)offset);
+            CHECK_LLVM_CONST(max_addr);
+            BUILD_ICMP(LLVMIntUGT, addr, max_addr, cmp1, "cmp1");
             if (!aot_emit_exception(comp_ctx, func_ctx,
                                     EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, true,
                                     cmp1, check_integer_overflow_end)) {
@@ -340,7 +344,7 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         CHECK_LLVM_CONST(shared_heap_check_bound);
 
         /* Check whether the bytes to access are in shared heap */
-        if (!comp_ctx->enable_bound_check) {
+        if (!comp_ctx->enable_mem_bound_check) {
             /* Use IntUGT but not IntUGE to compare, since (1) in the ems
                memory allocator, the hmu node includes hmu header and hmu
                memory, only the latter is returned to the caller as the
@@ -418,7 +422,7 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         block_curr = LLVMGetInsertBlock(comp_ctx->builder);
     }
 
-    if (comp_ctx->enable_bound_check
+    if (comp_ctx->enable_mem_bound_check
         && !(is_local_of_aot_value
              && aot_checked_addr_list_find(func_ctx, local_idx_of_aot_value,
                                            offset, bytes))) {
@@ -454,14 +458,22 @@ aot_check_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         }
         else {
             if (comp_ctx->enable_shared_heap /* TODO: && mem_idx == 0 */) {
-                /* Check integer overflow has been checked above */
+                /* Integer overflow has been checked above */
                 BUILD_ICMP(LLVMIntUGT, offset1, mem_check_bound, cmp, "cmp");
             }
             else {
-                /* Check integer overflow */
-                BUILD_ICMP(LLVMIntULT, offset1, addr, cmp1, "cmp1");
-                BUILD_ICMP(LLVMIntUGT, offset1, mem_check_bound, cmp2, "cmp2");
-                BUILD_OP(Or, cmp1, cmp2, cmp, "cmp");
+                if (offset > 0) {
+                    LLVMValueRef max_addr = I32_CONST(UINT32_MAX - offset);
+                    CHECK_LLVM_CONST(max_addr);
+                    BUILD_ICMP(LLVMIntUGT, addr, max_addr, cmp1, "cmp1");
+                    BUILD_ICMP(LLVMIntUGT, offset1, mem_check_bound, cmp2,
+                               "cmp2");
+                    BUILD_OP(Or, cmp1, cmp2, cmp, "cmp");
+                }
+                else {
+                    BUILD_ICMP(LLVMIntUGT, offset1, mem_check_bound, cmp,
+                               "cmp");
+                }
             }
         }
 
@@ -1231,7 +1243,7 @@ check_bulk_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
 
     BUILD_OP(Add, offset, bytes, max_addr, "max_addr");
 
-    if (is_memory64 && comp_ctx->enable_bound_check) {
+    if (is_memory64 && comp_ctx->enable_mem_bound_check) {
         /* Check whether integer overflow occurs in offset + addr */
         LLVMBasicBlockRef check_integer_overflow_end;
         ADD_BASIC_BLOCK(check_integer_overflow_end,
@@ -1285,7 +1297,7 @@ check_bulk_memory_overflow(AOTCompContext *comp_ctx, AOTFuncContext *func_ctx,
         CHECK_LLVM_CONST(shared_heap_check_bound);
 
         /* Check whether the bytes to access are in shared heap */
-        if (!comp_ctx->enable_bound_check) {
+        if (!comp_ctx->enable_mem_bound_check) {
             /* Use IntUGT but not IntUGE to compare, same as the check
                in aot_check_memory_overflow */
             BUILD_ICMP(LLVMIntUGT, offset, func_ctx->shared_heap_start_off,

@@ -11,7 +11,7 @@
 #include "../../interpreter/wasm_runtime.h"
 #include "jit_emit_control.h"
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
 static JitReg
 get_memory_boundary(JitCompContext *cc, uint32 mem_idx, uint32 bytes)
 {
@@ -84,7 +84,7 @@ check_and_seek_on_64bit_platform(JitCompContext *cc, JitReg addr, JitReg offset,
     offset1 = jit_cc_new_reg_I64(cc);
     GEN_INSN(ADD, offset1, offset, long_addr);
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
     /* if (offset1 > memory_boundary) goto EXCEPTION */
     GEN_INSN(CMP, cc->cmp_reg, offset1, memory_boundary);
     if (!jit_emit_exception(cc, EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, JIT_OP_BGTU,
@@ -94,7 +94,7 @@ check_and_seek_on_64bit_platform(JitCompContext *cc, JitReg addr, JitReg offset,
 #endif
 
     return offset1;
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
 fail:
     return 0;
 #endif
@@ -117,7 +117,7 @@ check_and_seek_on_32bit_platform(JitCompContext *cc, JitReg addr, JitReg offset,
         goto fail;
     }
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
     /* if (offset1 > memory_boundary) goto EXCEPTION */
     GEN_INSN(CMP, cc->cmp_reg, offset1, memory_boundary);
     if (!jit_emit_exception(cc, EXCE_OUT_OF_BOUNDS_MEMORY_ACCESS, JIT_OP_BGTU,
@@ -136,13 +136,13 @@ static JitReg
 check_and_seek(JitCompContext *cc, JitReg addr, uint32 offset, uint32 bytes)
 {
     JitReg memory_boundary = 0, offset1;
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
     JitReg cur_page_count;
     /* the default memory */
     uint32 mem_idx = 0;
 #endif
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
     /* ---------- check ---------- */
     /* 1. shortcut if the memory size is 0 */
     if (cc->cur_wasm_module->memories != NULL

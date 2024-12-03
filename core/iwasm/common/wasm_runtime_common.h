@@ -486,7 +486,8 @@ typedef struct LLVMJITOptions {
 } LLVMJITOptions;
 #endif
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 /* Signal info passing to interp/aot signal handler */
 typedef struct WASMSignalInfo {
     WASMExecEnv *exec_env_tls;
@@ -689,7 +690,8 @@ WASM_RUNTIME_API_EXTERN bool
 wasm_runtime_is_bounds_checks_enabled(WASMModuleInstanceCommon *module_inst);
 #endif
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 /* Access exception check guard page to trigger the signal handler */
 void
 wasm_runtime_access_exce_check_guard_page();

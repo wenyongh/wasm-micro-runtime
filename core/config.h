@@ -301,10 +301,10 @@
 #define WASM_ENABLE_MINI_LOADER 0
 #endif
 
-/* Disable boundary check with hardware trap or not,
+/* Disable wasm memory boundary check with hardware trap or not,
  * enable it by default if it is supported */
-#ifndef WASM_DISABLE_HW_BOUND_CHECK
-#define WASM_DISABLE_HW_BOUND_CHECK 0
+#ifndef WASM_DISABLE_MEM_HW_BOUND_CHECK
+#define WASM_DISABLE_MEM_HW_BOUND_CHECK 0
 #endif
 
 /* Disable native stack access boundary check with hardware

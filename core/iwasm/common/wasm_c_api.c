@@ -3415,7 +3415,8 @@ wasm_func_call(const wasm_func_t *func, const wasm_val_vec_t *params,
         goto failed;
     }
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     exec_env = wasm_runtime_get_exec_env_tls();
 #endif
 #if WASM_ENABLE_THREAD_MGR != 0

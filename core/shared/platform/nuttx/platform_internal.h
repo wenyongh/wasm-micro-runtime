@@ -142,6 +142,48 @@ os_get_invalid_handle(void)
     return -1;
 }
 
+#define os_thread_local_attribute __thread
+
+#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#if defined(BUILD_TARGET_X86_32) || defined(BUILD_TARGET_AMD_32)  \
+    || defined(BUILD_TARGET_ARM) || defined(BUILD_TARGET_ARM_VFP) \
+    || defined(BUILD_TARGET_RISCV32_ILP32)                        \
+    || defined(BUILD_TARGET_RISCV32_ILP32D)                       \
+    || defined(BUILD_TARGET_RISCV32_ILP32F) || defined(BUILD_TARGET_XTENSA)
+#define OS_ENABLE_STACK_HW_BOUND_CHECK
+#endif
+#endif
+
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
+
+#include <setjmp.h>
+
+typedef jmp_buf korp_jmpbuf;
+
+#define os_setjmp setjmp
+#define os_longjmp longjmp
+#define os_alloca alloca
+
+typedef void (*os_signal_handler)(void *sig_addr);
+
+int
+os_thread_signal_init(os_signal_handler handler);
+
+void
+os_thread_signal_destroy();
+
+bool
+os_thread_signal_inited();
+
+void
+os_signal_unmask();
+
+void
+os_sigreturn();
+#endif /* end of defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+                 || defined(OS_ENABLE_STACK_HW_BOUND_CHECK) */
+
 #ifdef __cplusplus
 }
 #endif

@@ -1591,7 +1591,8 @@ execute_post_instantiate_functions(AOTModuleInstance *module_inst,
     AOTFunctionInstance *post_inst_func = NULL;
     AOTFunctionInstance *call_ctors_func = NULL;
     WASMModuleInstanceCommon *module_inst_main = NULL;
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     WASMExecEnv *exec_env_tls = wasm_runtime_get_exec_env_tls();
 #endif
     WASMExecEnv *exec_env = NULL, *exec_env_created = NULL;
@@ -1637,7 +1638,8 @@ execute_post_instantiate_functions(AOTModuleInstance *module_inst,
 
     if (is_sub_inst) {
         bh_assert(exec_env_main);
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         /* May come from pthread_create_wrapper, thread_spawn_wrapper and
            wasm_cluster_spawn_exec_env. If it comes from the former two,
            the exec_env_tls must be not NULL and equal to exec_env_main,
@@ -1657,7 +1659,8 @@ execute_post_instantiate_functions(AOTModuleInstance *module_inst,
     }
     else {
         /* Try using the existing exec_env */
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         exec_env = exec_env_tls;
 #endif
 #if WASM_ENABLE_THREAD_MGR != 0
@@ -2295,7 +2298,8 @@ aot_lookup_function(const AOTModuleInstance *module_inst, const char *name)
                    sizeof(AOTFunctionInstance), cmp_func_inst);
 }
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 static bool
 invoke_native_with_hw_bound_check(WASMExecEnv *exec_env, void *func_ptr,
                                   const WASMFuncType *func_type,
@@ -2386,7 +2390,8 @@ invoke_native_with_hw_bound_check(WASMExecEnv *exec_env, void *func_ptr,
     return ret;
 }
 #define invoke_native_internal invoke_native_with_hw_bound_check /* NOLINT */
-#else /* else of OS_ENABLE_HW_BOUND_CHECK */
+#else /* else of defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+                 || defined(OS_ENABLE_STACK_HW_BOUND_CHECK) */
 static inline bool
 invoke_native_internal(WASMExecEnv *exec_env, void *func_ptr,
                        const WASMFuncType *func_type, const char *signature,
@@ -2407,7 +2412,8 @@ invoke_native_internal(WASMExecEnv *exec_env, void *func_ptr,
     return wasm_runtime_invoke_native(exec_env, func_ptr, func_type, signature,
                                       attachment, argv, argc, argv_ret);
 }
-#endif /* end of OS_ENABLE_HW_BOUND_CHECK */
+#endif /* end of defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+                 || defined(OS_ENABLE_STACK_HW_BOUND_CHECK) */
 
 #ifdef AOT_STACK_FRAME_DEBUG
 typedef void (*stack_frame_callback_t)(struct WASMExecEnv *exec_env);
@@ -2488,7 +2494,8 @@ aot_call_function(WASMExecEnv *exec_env, AOTFunctionInstance *function,
     /* func pointer was looked up previously */
     bh_assert(func_ptr != NULL);
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#if !defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    && !defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     /* Set thread handle and stack boundary */
     wasm_exec_env_set_thread_info(exec_env);
 #else
@@ -2663,7 +2670,8 @@ aot_set_exception_with_id(AOTModuleInstance *module_inst, uint32 id)
 {
     if (id != EXCE_ALREADY_THROWN)
         wasm_set_exception_with_id(module_inst, id);
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     wasm_runtime_access_exce_check_guard_page();
 #endif
 }
@@ -2688,7 +2696,8 @@ execute_malloc_function(AOTModuleInstance *module_inst, WASMExecEnv *exec_env,
                         AOTFunctionInstance *retain_func, uint64 size,
                         uint64 *p_result)
 {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     WASMExecEnv *exec_env_tls = wasm_runtime_get_exec_env_tls();
 #endif
     WASMExecEnv *exec_env_created = NULL;
@@ -2726,7 +2735,8 @@ execute_malloc_function(AOTModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
 
     if (exec_env) {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         if (exec_env_tls) {
             bh_assert(exec_env_tls == exec_env);
         }
@@ -2736,7 +2746,8 @@ execute_malloc_function(AOTModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
     else {
         /* Try using the existing exec_env */
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         exec_env = exec_env_tls;
 #endif
 #if WASM_ENABLE_THREAD_MGR != 0
@@ -2791,7 +2802,8 @@ static bool
 execute_free_function(AOTModuleInstance *module_inst, WASMExecEnv *exec_env,
                       AOTFunctionInstance *free_func, uint64 offset)
 {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     WASMExecEnv *exec_env_tls = wasm_runtime_get_exec_env_tls();
 #endif
     WASMExecEnv *exec_env_created = NULL;
@@ -2816,7 +2828,8 @@ execute_free_function(AOTModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
 
     if (exec_env) {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         if (exec_env_tls) {
             bh_assert(exec_env_tls == exec_env);
         }
@@ -2826,7 +2839,8 @@ execute_free_function(AOTModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
     else {
         /* Try using the existing exec_env */
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         exec_env = exec_env_tls;
 #endif
 #if WASM_ENABLE_THREAD_MGR != 0
@@ -3156,7 +3170,8 @@ aot_invoke_native(WASMExecEnv *exec_env, uint32 func_idx, uint32 argc,
     }
 
 fail:
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!ret)
         wasm_runtime_access_exce_check_guard_page();
 #endif
@@ -3333,7 +3348,8 @@ aot_call_indirect(WASMExecEnv *exec_env, uint32 tbl_idx, uint32 table_elem_idx,
     }
 
 fail:
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     wasm_runtime_access_exce_check_guard_page();
 #endif
     return false;
@@ -3349,7 +3365,8 @@ aot_check_app_addr_and_convert(AOTModuleInstance *module_inst, bool is_str,
     ret = wasm_check_app_addr_and_convert(module_inst, is_str, app_buf_addr,
                                           app_buf_size, p_native_addr);
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!ret)
         wasm_runtime_access_exce_check_guard_page();
 #endif

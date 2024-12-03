@@ -192,7 +192,7 @@ wasm_runtime_create_shared_heap(SharedHeapInitArgs *init_args)
         goto fail3;
     }
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
     map_size = size;
 #else
     /* Totally 8G is mapped, the opcode load/store address range is 0 to 8G:
@@ -566,7 +566,7 @@ destroy_shared_heaps()
         heap = heap->next;
         mem_allocator_destroy(cur->heap_handle);
         wasm_runtime_free(cur->heap_handle);
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
         map_size = cur->size;
 #else
         map_size = 8 * (uint64)BH_GB;
@@ -1156,7 +1156,7 @@ wasm_check_app_addr_and_convert(WASMModuleInstance *module_inst, bool is_str,
 
     /* No need to check the app_offset and buf_size if memory access
        boundary check with hardware trap is enabled */
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
     SHARED_MEMORY_LOCK(memory_inst);
 
     if (app_buf_addr >= memory_inst->memory_data_size) {
@@ -1187,7 +1187,7 @@ success:
     *p_native_addr = (void *)native_addr;
     return true;
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
 fail:
     SHARED_MEMORY_UNLOCK(memory_inst);
     wasm_set_exception(module_inst, "out of bounds memory access");
@@ -1307,7 +1307,7 @@ wasm_enlarge_memory_internal(WASMModuleInstanceCommon *module,
         goto return_func;
     }
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#ifdef OS_ENABLE_MEM_HW_BOUND_CHECK
     full_size_mmaped = true;
 #elif WASM_ENABLE_SHARED_MEMORY != 0
     full_size_mmaped = shared_memory_is_shared(memory);
@@ -1660,7 +1660,7 @@ wasm_deallocate_linear_memory(WASMMemoryInstance *memory_inst)
     bh_assert(memory_inst);
     bh_assert(memory_inst->memory_data);
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
 #if WASM_ENABLE_SHARED_MEMORY != 0
     if (shared_memory_is_shared(memory_inst)) {
         map_size = (uint64)memory_inst->num_bytes_per_page
@@ -1702,7 +1702,7 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
     bh_assert(data);
     bh_assert(memory_data_size);
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
 #if WASM_ENABLE_SHARED_MEMORY != 0
     if (is_shared_memory) {
         /* Allocate maximum memory size when memory is shared */
@@ -1713,14 +1713,14 @@ wasm_allocate_linear_memory(uint8 **data, bool is_shared_memory,
     {
         map_size = init_page_count * num_bytes_per_page;
     }
-#else  /* else of OS_ENABLE_HW_BOUND_CHECK */
+#else  /* else of OS_ENABLE_MEM_HW_BOUND_CHECK */
     /* Totally 8G is mapped, the opcode load/store address range is 0 to 8G:
      *   ea = i + memarg.offset
      * both i and memarg.offset are u32 in range 0 to 4G
      * so the range of ea is 0 to 8G
      */
     map_size = 8 * (uint64)BH_GB;
-#endif /* end of OS_ENABLE_HW_BOUND_CHECK */
+#endif /* end of OS_ENABLE_MEM_HW_BOUND_CHECK */
 
     page_size = os_getpagesize();
     *memory_data_size = init_page_count * num_bytes_per_page;

@@ -1563,7 +1563,8 @@ execute_post_instantiate_functions(WASMModuleInstance *module_inst,
     WASMModule *module = module_inst->module;
 #endif
     WASMModuleInstanceCommon *module_inst_main = NULL;
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     WASMExecEnv *exec_env_tls = wasm_runtime_get_exec_env_tls();
 #endif
     WASMExecEnv *exec_env = NULL, *exec_env_created = NULL;
@@ -1609,7 +1610,8 @@ execute_post_instantiate_functions(WASMModuleInstance *module_inst,
 
     if (is_sub_inst) {
         bh_assert(exec_env_main);
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         /* May come from pthread_create_wrapper, thread_spawn_wrapper and
            wasm_cluster_spawn_exec_env. If it comes from the former two,
            the exec_env_tls must be not NULL and equal to exec_env_main,
@@ -1629,7 +1631,8 @@ execute_post_instantiate_functions(WASMModuleInstance *module_inst,
     }
     else {
         /* Try using the existing exec_env */
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         exec_env = exec_env_tls;
 #endif
 #if WASM_ENABLE_THREAD_MGR != 0
@@ -1703,7 +1706,8 @@ execute_malloc_function(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
                         WASMFunctionInstance *retain_func, uint64 size,
                         uint64 *p_result)
 {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     WASMExecEnv *exec_env_tls = wasm_runtime_get_exec_env_tls();
 #endif
     WASMExecEnv *exec_env_created = NULL;
@@ -1740,7 +1744,8 @@ execute_malloc_function(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
 
     if (exec_env) {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         if (exec_env_tls) {
             bh_assert(exec_env_tls == exec_env);
         }
@@ -1750,7 +1755,8 @@ execute_malloc_function(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
     else {
         /* Try using the existing exec_env */
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         exec_env = exec_env_tls;
 #endif
 #if WASM_ENABLE_THREAD_MGR != 0
@@ -1805,7 +1811,8 @@ static bool
 execute_free_function(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
                       WASMFunctionInstance *free_func, uint64 offset)
 {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     WASMExecEnv *exec_env_tls = wasm_runtime_get_exec_env_tls();
 #endif
     WASMExecEnv *exec_env_created = NULL;
@@ -1830,7 +1837,8 @@ execute_free_function(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
 
     if (exec_env) {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         if (exec_env_tls) {
             bh_assert(exec_env_tls == exec_env);
         }
@@ -1840,7 +1848,8 @@ execute_free_function(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
     }
     else {
         /* Try using the existing exec_env */
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
         exec_env = exec_env_tls;
 #endif
 #if WASM_ENABLE_THREAD_MGR != 0
@@ -3505,7 +3514,8 @@ wasm_lookup_tag(const WASMModuleInstance *module_inst, const char *name,
 
 #endif
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 static void
 call_wasm_with_hw_bound_check(WASMModuleInstance *module_inst,
                               WASMExecEnv *exec_env,
@@ -3613,7 +3623,8 @@ wasm_call_function(WASMExecEnv *exec_env, WASMFunctionInstance *function,
     WASMModuleInstance *module_inst =
         (WASMModuleInstance *)exec_env->module_inst;
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
+#if !defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    && !defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     /* Set thread handle and stack boundary */
     wasm_exec_env_set_thread_info(exec_env);
 #else
@@ -4422,7 +4433,8 @@ jit_set_exception_with_id(WASMModuleInstance *module_inst, uint32 id)
 {
     if (id != EXCE_ALREADY_THROWN)
         wasm_set_exception_with_id(module_inst, id);
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     wasm_runtime_access_exce_check_guard_page();
 #endif
 }
@@ -4435,7 +4447,8 @@ jit_check_app_addr_and_convert(WASMModuleInstance *module_inst, bool is_str,
     bool ret = wasm_check_app_addr_and_convert(
         module_inst, is_str, app_buf_addr, app_buf_size, p_native_addr);
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!ret)
         wasm_runtime_access_exce_check_guard_page();
 #endif
@@ -4466,7 +4479,8 @@ llvm_jit_call_indirect(WASMExecEnv *exec_env, uint32 tbl_idx, uint32 elem_idx,
     bh_assert(exec_env->module_inst->module_type == Wasm_Module_Bytecode);
 
     ret = call_indirect(exec_env, tbl_idx, elem_idx, argc, argv, false, 0);
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!ret)
         wasm_runtime_access_exce_check_guard_page();
 #endif
@@ -4541,7 +4555,8 @@ llvm_jit_invoke_native(WASMExecEnv *exec_env, uint32 func_idx, uint32 argc,
     }
 
 fail:
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!ret)
         wasm_runtime_access_exce_check_guard_page();
 #endif

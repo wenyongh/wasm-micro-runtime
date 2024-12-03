@@ -175,7 +175,8 @@ static uint32 gc_heap_size_default = GC_HEAP_SIZE_DEFAULT;
 
 static RunningMode runtime_running_mode = Mode_Default;
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 /* The exec_env of thread local storage, set before calling function
    and used in signal handler, as we cannot get it from the argument
    of signal handler */
@@ -230,7 +231,7 @@ runtime_signal_handler(void *sig_addr)
     WASMModuleInstance *module_inst;
     WASMJmpBuf *jmpbuf_node;
     uint32 page_size = os_getpagesize();
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     uint8 *stack_min_addr;
     uint32 guard_page_count = STACK_OVERFLOW_CHECK_GUARD_PAGE_COUNT;
 #endif
@@ -241,7 +242,7 @@ runtime_signal_handler(void *sig_addr)
         /* Get mapped mem info of current instance */
         module_inst = (WASMModuleInstance *)exec_env_tls->module_inst;
 
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
         /* Get stack info of current thread */
         stack_min_addr = os_thread_get_stack_boundary();
 #endif
@@ -250,7 +251,7 @@ runtime_signal_handler(void *sig_addr)
             wasm_set_exception(module_inst, "out of bounds memory access");
             os_longjmp(jmpbuf_node->jmpbuf, 1);
         }
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
         else if (stack_min_addr <= (uint8 *)sig_addr
                  && (uint8 *)sig_addr
                         < stack_min_addr + page_size * guard_page_count) {
@@ -390,7 +391,7 @@ runtime_exception_handler(EXCEPTION_POINTERS *exce_info)
                     return ret;
             }
         }
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
         else if (ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW) {
             /* Set stack overflow exception and let the wasm func continue
                to run, when the wasm func returns, the caller will check
@@ -452,7 +453,8 @@ wasm_runtime_get_exec_env_tls()
 {
     return exec_env_tls;
 }
-#endif /* end of OS_ENABLE_HW_BOUND_CHECK */
+#endif /* end of defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+                 || defined(OS_ENABLE_STACK_HW_BOUND_CHECK) */
 
 static bool
 wasm_runtime_env_init(void)
@@ -486,7 +488,8 @@ wasm_runtime_env_init(void)
     }
 #endif
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!runtime_signal_init()) {
         goto fail6;
     }
@@ -554,7 +557,8 @@ fail8:
 fail7:
 #endif
 #endif
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     runtime_signal_destroy();
 fail6:
 #endif
@@ -651,7 +655,8 @@ wasm_runtime_destroy_internal(void)
 #endif
 #endif
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     runtime_signal_destroy();
 #endif
 
@@ -1748,7 +1753,8 @@ wasm_runtime_init_thread_env(void)
         return false;
 #endif
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!runtime_signal_init()) {
 #ifdef BH_PLATFORM_WINDOWS
         os_thread_env_destroy();
@@ -1767,7 +1773,8 @@ wasm_runtime_init_thread_env(void)
 void
 wasm_runtime_destroy_thread_env(void)
 {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     runtime_signal_destroy();
 #endif
 
@@ -1785,7 +1792,8 @@ wasm_runtime_thread_env_inited(void)
 #endif
 
 #if WASM_ENABLE_AOT != 0
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!os_thread_signal_inited())
         return false;
 #endif
@@ -2232,7 +2240,8 @@ wasm_runtime_set_native_stack_boundary(WASMExecEnv *exec_env,
     exec_env->user_native_stack_boundary = native_stack_boundary;
 }
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 void
 wasm_runtime_access_exce_check_guard_page()
 {
@@ -3161,8 +3170,8 @@ void
 wasm_runtime_set_bounds_checks(WASMModuleInstanceCommon *module_inst,
                                bool enable)
 {
-    /* Always disable bounds checks if hw bounds checks is enabled */
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+    /* Always disable bounds checks if mem hw bounds checks is enabled */
+#ifdef OS_ENABLE_MEM_HW_BOUND_CHECK
     enable = false;
 #endif
 #if WASM_ENABLE_INTERP != 0
@@ -7166,7 +7175,8 @@ wasm_runtime_quick_invoke_c_api_native(WASMModuleInstanceCommon *inst_comm,
     }
 
 fail:
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!ret)
         wasm_runtime_access_exce_check_guard_page();
 #endif
@@ -7673,7 +7683,7 @@ wasm_runtime_detect_native_stack_overflow(WASMExecEnv *exec_env)
         /* the platform doesn't support os_thread_get_stack_boundary */
         return true;
     }
-#if defined(OS_ENABLE_HW_BOUND_CHECK) && WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     uint32 page_size = os_getpagesize();
     uint32 guard_page_count = STACK_OVERFLOW_CHECK_GUARD_PAGE_COUNT;
     boundary = boundary + page_size * guard_page_count;
@@ -7696,7 +7706,7 @@ wasm_runtime_detect_native_stack_overflow_size(WASMExecEnv *exec_env,
         /* the platform doesn't support os_thread_get_stack_boundary */
         return true;
     }
-#if defined(OS_ENABLE_HW_BOUND_CHECK) && WASM_DISABLE_STACK_HW_BOUND_CHECK == 0
+#ifdef OS_ENABLE_STACK_HW_BOUND_CHECK
     uint32 page_size = os_getpagesize();
     uint32 guard_page_count = STACK_OVERFLOW_CHECK_GUARD_PAGE_COUNT;
     boundary = boundary + page_size * guard_page_count;

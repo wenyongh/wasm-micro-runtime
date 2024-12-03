@@ -59,7 +59,8 @@ wasm_exec_env_create_internal(struct WASMModuleInstanceCommon *module_inst,
 #endif
 #endif
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (!(exec_env->exce_check_guard_page =
               os_mmap(NULL, os_getpagesize(), MMAP_PROT_NONE, MMAP_MAP_NONE,
                       os_get_invalid_handle())))
@@ -87,7 +88,8 @@ wasm_exec_env_create_internal(struct WASMModuleInstanceCommon *module_inst,
 
     return exec_env;
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 fail5:
 #if WASM_ENABLE_THREAD_MGR != 0 && WASM_ENABLE_DEBUG_INTERP != 0
     wasm_cluster_destroy_exenv_status(exec_env->current_status);
@@ -113,7 +115,8 @@ fail1:
 void
 wasm_exec_env_destroy_internal(WASMExecEnv *exec_env)
 {
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     os_munmap(exec_env->exce_check_guard_page, os_getpagesize());
 #endif
 #if WASM_ENABLE_THREAD_MGR != 0
@@ -309,7 +312,8 @@ wasm_exec_env_set_thread_arg(WASMExecEnv *exec_env, void *thread_arg)
 }
 #endif
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 void
 wasm_exec_env_push_jmpbuf(WASMExecEnv *exec_env, WASMJmpBuf *jmpbuf)
 {

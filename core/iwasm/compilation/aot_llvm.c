@@ -2706,24 +2706,15 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
     if (option->is_jit_mode) {
         comp_ctx->is_jit_mode = true;
 
-#ifndef OS_ENABLE_HW_BOUND_CHECK
-        comp_ctx->enable_bound_check = true;
-        /* Always enable stack boundary check if `bounds-checks`
-           is enabled */
-        comp_ctx->enable_stack_bound_check = true;
+#ifndef OS_ENABLE_MEM_HW_BOUND_CHECK
+        comp_ctx->enable_mem_bound_check = true;
 #else
-        comp_ctx->enable_bound_check = false;
-        /* When `bounds-checks` is disabled, we set stack boundary
-           check status according to the compilation option */
-#if WASM_DISABLE_STACK_HW_BOUND_CHECK != 0
-        /* Native stack overflow check with hardware trap is disabled,
-           we need to enable the check by LLVM JITed/AOTed code */
-        comp_ctx->enable_stack_bound_check = true;
-#else
-        /* Native stack overflow check with hardware trap is enabled,
-           no need to enable the check by LLVM JITed/AOTed code */
-        comp_ctx->enable_stack_bound_check = false;
+        comp_ctx->enable_mem_bound_check = false;
 #endif
+#ifndef OS_ENABLE_STACK_HW_BOUND_CHECK
+        comp_ctx->enable_stack_bound_check = true;
+#else
+        comp_ctx->enable_stack_bound_check = false;
 #endif
 
         /* Create TargetMachine */
@@ -3038,17 +3029,17 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
 
         if (option->bounds_checks == 1 || option->bounds_checks == 0) {
             /* Set by the user */
-            comp_ctx->enable_bound_check =
+            comp_ctx->enable_mem_bound_check =
                 (option->bounds_checks == 1) ? true : false;
         }
         else {
             /* Unset by the user, use the default value */
             if (strstr(comp_ctx->target_arch, "64")
                 && !option->is_sgx_platform) {
-                comp_ctx->enable_bound_check = false;
+                comp_ctx->enable_mem_bound_check = false;
             }
             else {
-                comp_ctx->enable_bound_check = true;
+                comp_ctx->enable_mem_bound_check = true;
             }
         }
 
@@ -3061,7 +3052,8 @@ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
         else {
             /* Unset by the user, use the default value, it will be the same
              * value as the bound check */
-            comp_ctx->enable_stack_bound_check = comp_ctx->enable_bound_check;
+            comp_ctx->enable_stack_bound_check =
+                comp_ctx->enable_mem_bound_check;
         }
 
         if ((comp_ctx->enable_stack_bound_check
@@ -3681,8 +3673,8 @@ aot_checked_addr_list_find(AOTFuncContext *func_ctx, uint32 local_idx,
     AOTCheckedAddr *node = func_ctx->checked_addr_list;
 
     while (node) {
-        if (node->local_idx == local_idx && node->offset == offset
-            && node->bytes >= bytes) {
+        if (node->local_idx == local_idx
+            && offset + bytes <= node->offset + node->bytes) {
             return true;
         }
         node = node->next;

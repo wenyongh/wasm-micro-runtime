@@ -592,9 +592,11 @@ wasm_cluster_destroy_spawned_exec_env(WASMExecEnv *exec_env)
     bh_assert(cluster != NULL);
     WASMExecEnv *exec_env_tls = NULL;
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     /* Note: free_aux_stack can execute the module's "free" function
-     * using the specified exec_env. In case of OS_ENABLE_HW_BOUND_CHECK,
+     * using the specified exec_env. In case of OS_ENABLE_MEM_HW_BOUND_CHECK
+     * and OS_ENABLE_STACK_HW_BOUND_CHECK,
      * it needs to match the TLS exec_env if available. (Consider a native
      * function which calls wasm_cluster_destroy_spawned_exec_env.)
      */
@@ -643,7 +645,8 @@ thread_manager_start_routine(void *arg)
 
     ret = exec_env->thread_start_routine(exec_env);
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     os_mutex_lock(&exec_env->wait_lock);
     if (WASM_SUSPEND_FLAGS_GET(exec_env->suspend_flags)
         & WASM_SUSPEND_FLAG_EXIT)
@@ -1029,7 +1032,8 @@ wasm_cluster_exit_thread(WASMExecEnv *exec_env, void *retval)
     WASMCluster *cluster;
     WASMModuleInstanceCommon *module_inst;
 
-#ifdef OS_ENABLE_HW_BOUND_CHECK
+#if defined(OS_ENABLE_MEM_HW_BOUND_CHECK) \
+    || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
     if (exec_env->jmpbuf_stack_top) {
         /* Store the return value in exec_env */
         exec_env->thread_ret_value = retval;
