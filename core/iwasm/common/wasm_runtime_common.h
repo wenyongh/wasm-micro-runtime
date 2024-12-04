@@ -694,7 +694,7 @@ wasm_runtime_is_bounds_checks_enabled(WASMModuleInstanceCommon *module_inst);
     || defined(OS_ENABLE_STACK_HW_BOUND_CHECK)
 /* Access exception check guard page to trigger the signal handler */
 void
-wasm_runtime_access_exce_check_guard_page();
+wasm_runtime_access_exce_check_guard_page(void);
 #endif
 
 /* See wasm_export.h for description */

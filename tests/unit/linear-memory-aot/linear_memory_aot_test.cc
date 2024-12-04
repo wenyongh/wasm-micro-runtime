@@ -28,7 +28,7 @@ get_binary_path()
     return std::string(cwd);
 }
 
-#if WASM_DISABLE_HW_BOUND_CHECK != 0
+#if WASM_DISABLE_MEM_HW_BOUND_CHECK != 0
 #define TEST_SUITE_NAME linear_memory_test_suite_aot_no_hw_bound
 #else
 #define TEST_SUITE_NAME linear_memory_test_suite_aot

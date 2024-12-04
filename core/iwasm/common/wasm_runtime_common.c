@@ -182,6 +182,7 @@ static RunningMode runtime_running_mode = Mode_Default;
    of signal handler */
 static os_thread_local_attribute WASMExecEnv *exec_env_tls = NULL;
 
+#ifdef OS_ENABLE_MEM_HW_BOUND_CHECK
 static bool
 is_sig_addr_in_guard_pages(void *sig_addr, WASMModuleInstance *module_inst)
 {
@@ -223,6 +224,15 @@ is_sig_addr_in_guard_pages(void *sig_addr, WASMModuleInstance *module_inst)
 
     return false;
 }
+#else
+static bool
+is_sig_addr_in_guard_pages(void *sig_addr, WASMModuleInstance *module_inst)
+{
+    /* guard pages were not created when memory hw bound check
+       isn't enabled */
+    return false;
+}
+#endif
 
 #ifndef BH_PLATFORM_WINDOWS
 static void
