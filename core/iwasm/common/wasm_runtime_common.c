@@ -427,7 +427,7 @@ runtime_exception_handler(EXCEPTION_POINTERS *exce_info)
 #endif /* end of BH_PLATFORM_WINDOWS */
 
 static bool
-runtime_signal_init()
+runtime_signal_init(void)
 {
 #ifndef BH_PLATFORM_WINDOWS
     return os_thread_signal_init(runtime_signal_handler) == 0 ? true : false;
@@ -444,7 +444,7 @@ runtime_signal_init()
 }
 
 static void
-runtime_signal_destroy()
+runtime_signal_destroy(void)
 {
 #ifdef BH_PLATFORM_WINDOWS
     RemoveVectoredExceptionHandler(runtime_exception_handler);
