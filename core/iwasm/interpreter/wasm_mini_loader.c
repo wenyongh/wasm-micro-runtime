@@ -48,7 +48,9 @@ is_table_64bit(WASMModule *module, uint32 table_idx)
         return !!(module->import_tables[table_idx].u.table.table_type.flags
                   & TABLE64_FLAG);
     else
-        return !!(module->tables[table_idx].table_type.flags & TABLE64_FLAG);
+        return !!(module->tables[table_idx - module->import_table_count]
+                      .table_type.flags
+                  & TABLE64_FLAG);
 
     return false;
 }
@@ -2566,7 +2568,7 @@ get_table_elem_type(const WASMModule *module, uint32 table_idx,
                 module->import_tables[table_idx].u.table.table_type.elem_type;
         else
             *p_elem_type =
-                module->tables[module->import_table_count + table_idx]
+                module->tables[table_idx - module->import_table_count]
                     .table_type.elem_type;
     }
     return true;
@@ -2736,6 +2738,12 @@ load_from_sections(WASMModule *module, WASMSection *sections,
     for (i = 0; i < module->export_count; i++, export ++) {
         if (export->kind == EXPORT_KIND_GLOBAL) {
             if (!strcmp(export->name, "__heap_base")) {
+                if (export->index < module->import_global_count) {
+                    LOG_DEBUG("Skip the process if __heap_base is imported "
+                              "instead of being a local global");
+                    continue;
+                }
+
                 global_index = export->index - module->import_global_count;
                 global = module->globals + global_index;
                 if (global->type.val_type == VALUE_TYPE_I32
@@ -2750,6 +2758,12 @@ load_from_sections(WASMModule *module, WASMSection *sections,
                 }
             }
             else if (!strcmp(export->name, "__data_end")) {
+                if (export->index < module->import_global_count) {
+                    LOG_DEBUG("Skip the process if __data_end is imported "
+                              "instead of being a local global");
+                    continue;
+                }
+
                 global_index = export->index - module->import_global_count;
                 global = module->globals + global_index;
                 if (global->type.val_type == VALUE_TYPE_I32
@@ -6685,6 +6699,15 @@ re_scan:
                                        error_buf_size)) {
                     goto fail;
                 }
+
+                bh_assert(
+                    (table_idx < module->import_table_count
+                         ? module->import_tables[table_idx]
+                               .u.table.table_type.elem_type
+                         : module
+                               ->tables[table_idx - module->import_table_count]
+                               .table_type.elem_type)
+                    == VALUE_TYPE_FUNCREF);
 
 #if WASM_ENABLE_FAST_INTERP != 0
                 /* we need to emit before arguments */

@@ -58,7 +58,9 @@ is_table_64bit(WASMModule *module, uint32 table_idx)
         return !!(module->import_tables[table_idx].u.table.table_type.flags
                   & TABLE64_FLAG);
     else
-        return !!(module->tables[table_idx].table_type.flags & TABLE64_FLAG);
+        return !!(module->tables[table_idx - module->import_table_count]
+                      .table_type.flags
+                  & TABLE64_FLAG);
 
     return false;
 }
@@ -4237,7 +4239,10 @@ check_table_index(const WASMModule *module, uint32 table_index, char *error_buf,
 {
 #if WASM_ENABLE_REF_TYPES == 0 && WASM_ENABLE_GC == 0
     if (table_index != 0) {
-        set_error_buf(error_buf, error_buf_size, "zero byte expected");
+        set_error_buf(
+            error_buf, error_buf_size,
+            "zero byte expected. The module uses reference types feature "
+            "which is disabled in the runtime.");
         return false;
     }
 #endif
@@ -4282,7 +4287,8 @@ check_table_elem_type(WASMModule *module, uint32 table_index,
             module->import_tables[table_index].u.table.table_type.elem_type;
     else
         table_declared_elem_type =
-            (module->tables + table_index)->table_type.elem_type;
+            module->tables[table_index - module->import_table_count]
+                .table_type.elem_type;
 
     if (table_declared_elem_type == type_from_elem_seg)
         return true;
@@ -5924,6 +5930,13 @@ load_from_sections(WASMModule *module, WASMSection *sections,
     for (i = 0; i < module->export_count; i++, export ++) {
         if (export->kind == EXPORT_KIND_GLOBAL) {
             if (!strcmp(export->name, "__heap_base")) {
+                if (export->index < module->import_global_count) {
+                    LOG_DEBUG("Skip the process if __heap_base is imported "
+                              "instead of being a local global");
+                    continue;
+                }
+
+                /* only process linker-generated symbols */
                 global_index = export->index - module->import_global_count;
                 global = module->globals + global_index;
                 if (global->type.val_type == VALUE_TYPE_I32
@@ -5938,6 +5951,13 @@ load_from_sections(WASMModule *module, WASMSection *sections,
                 }
             }
             else if (!strcmp(export->name, "__data_end")) {
+                if (export->index < module->import_global_count) {
+                    LOG_DEBUG("Skip the process if __data_end is imported "
+                              "instead of being a local global");
+                    continue;
+                }
+
+                /* only process linker-generated symbols */
                 global_index = export->index - module->import_global_count;
                 global = module->globals + global_index;
                 if (global->type.val_type == VALUE_TYPE_I32
@@ -10837,12 +10857,12 @@ get_table_elem_type(const WASMModule *module, uint32 table_idx,
     else {
         if (p_elem_type)
             *p_elem_type =
-                module->tables[module->import_table_count + table_idx]
+                module->tables[table_idx - module->import_table_count]
                     .table_type.elem_type;
 #if WASM_ENABLE_GC != 0
         if (p_ref_type)
             *((WASMRefType **)p_ref_type) =
-                module->tables[module->import_table_count + table_idx]
+                module->tables[table_idx - module->import_table_count]
                     .table_type.elem_ref_type;
 #endif
     }
@@ -12083,6 +12103,10 @@ re_scan:
             {
                 int32 idx;
                 WASMFuncType *func_type;
+                uint32 tbl_elem_type;
+#if WASM_ENABLE_GC != 0
+                WASMRefType *elem_ref_type = NULL;
+#endif
 
                 read_leb_uint32(p, p_end, type_idx);
 #if WASM_ENABLE_REF_TYPES != 0 || WASM_ENABLE_GC != 0
@@ -12105,6 +12129,43 @@ re_scan:
                                        error_buf_size)) {
                     goto fail;
                 }
+                tbl_elem_type =
+                    table_idx < module->import_table_count
+                        ? module->import_tables[table_idx]
+                              .u.table.table_type.elem_type
+                        : module->tables[table_idx - module->import_table_count]
+                              .table_type.elem_type;
+
+#if WASM_ENABLE_GC == 0 && WASM_ENABLE_REF_TYPES != 0
+                if (tbl_elem_type != VALUE_TYPE_FUNCREF) {
+                    set_error_buf_v(error_buf, error_buf_size,
+                                    "type mismatch: instruction requires table "
+                                    "of functions but table %u has externref",
+                                    table_idx);
+                    goto fail;
+                }
+#elif WASM_ENABLE_GC != 0
+                /* Table element must match type ref null func */
+                elem_ref_type =
+                    table_idx < module->import_table_count
+                        ? module->import_tables[table_idx]
+                              .u.table.table_type.elem_ref_type
+                        : module->tables[table_idx - module->import_table_count]
+                              .table_type.elem_ref_type;
+
+                if (!wasm_reftype_is_subtype_of(
+                        tbl_elem_type, elem_ref_type, REF_TYPE_FUNCREF, NULL,
+                        module->types, module->type_count)) {
+                    set_error_buf_v(error_buf, error_buf_size,
+                                    "type mismatch: instruction requires "
+                                    "reference type t match type ref null func"
+                                    "in table %u",
+                                    table_idx);
+                    goto fail;
+                }
+#else
+                (void)tbl_elem_type;
+#endif
 
 #if WASM_ENABLE_FAST_INTERP != 0
                 /* we need to emit before arguments */
