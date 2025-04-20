@@ -1,7 +1,7 @@
 # Copyright (C) 2019 Intel Corporation.  All rights reserved.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-cmake_minimum_required (VERSION 3.0)
+cmake_minimum_required (VERSION 3.14)
 
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
 
@@ -98,6 +98,11 @@ if (NOT DEFINED WAMR_BUILD_LIB_WASI_THREADS)
   # Disable wasi threads library by default
   set (WAMR_BUILD_LIB_WASI_THREADS 0)
 endif ()
+
+if (NOT DEFINED WAMR_ENABLE_COPY_CALLSTACK)
+  # Disable copy callstack by default
+  set (WAMR_ENABLE_COPY_CALLSTACK 0)
+endif()
 
 if (NOT DEFINED WAMR_BUILD_MINI_LOADER)
   # Disable wasm mini loader by default
